@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+.pnpm-store/
+__pycache__/
+*.pyc
+
+# 环境变量
+.env
+.env.local
+
+# 模型权重 (不要传大文件到Git，用Git LFS或网盘)
+*.onnx
+*.pth
+*.pt
+*.weights
+*.bin
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
