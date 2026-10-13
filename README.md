@@ -15,3 +15,4 @@
 - `experiments/` - 实验数据与对比
 - `docs/` - 项目文档与PPT
 - `research/` - 竞品调研与产品文档
+- `.dsh-scratch/` - **临时目录**：AI 执行任务时产生的日志/脚本/中间产物，已加入 `.gitignore`，不提交、可随时整个删除

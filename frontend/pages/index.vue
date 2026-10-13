@@ -5,14 +5,19 @@
     <!-- 上半部分：摄像头 + 画布 -->
     <div class="grid grid-cols-2 gap-4">
       <CameraPreview />
-      <DrawingCanvas />
+      <DrawingCanvas ref="canvasRef" />
     </div>
 
     <!-- 下半部分：工具栏 + Agent 面板 + 风格库 -->
     <div class="mt-4 flex gap-4">
-      <Toolbar />
+      <Toolbar @clear="canvasRef?.clear()" />
       <AgentPanel />
       <StyleGallery />
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+/** DrawingCanvas 通过 defineExpose 暴露了 clear()，这里用模板 ref 接住它 */
+const canvasRef = ref<{ clear: () => void } | null>(null)
+</script>
