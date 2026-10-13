@@ -16,3 +16,17 @@
 - `docs/` - 项目文档与PPT
 - `research/` - 竞品调研与产品文档
 - `.dsh-scratch/` - **临时目录**：AI 执行任务时产生的日志/脚本/中间产物，已加入 `.gitignore`，不提交、可随时整个删除
+
+
+
+## 本地运行前准备
+
+本项目依赖以下大文件，未纳入 Git 仓库，请手动放置：
+
+1. **MediaPipe WASM 运行时**
+   从 `node_modules/@mediapipe/tasks-vision/wasm/` 复制整个 `wasm` 文件夹到 `frontend/public/wasm/`
+
+2. **手部关键点模型**
+   下载 `hand_landmarker.task`（约 7–8 MB）：
+   https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+   放到 `frontend/public/models/hand_landmarker.task`

@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 const brush = useBrushStore()
+const gesture = useGestureStore()
 
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 
@@ -29,6 +30,8 @@ let ctx: CanvasRenderingContext2D | null = null
 let drawing = false
 /** 上一个点（canvas 内部坐标系），用于和当前点连成线段 */
 let lastPoint: { x: number; y: number } | null = null
+/** 上一帧食指尖的位置（canvas 内部坐标），手势画线靠它连成线段 */
+let lastGesturePoint: { x: number; y: number } | null = null
 
 onMounted(() => {
   ctx = canvasEl.value?.getContext('2d') ?? null
@@ -36,6 +39,30 @@ onMounted(() => {
 
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+})
+
+/**
+ * 食指尖坐标一变就画一段线。
+ * CameraPreview 存的是按视频画面归一化的 0–1 坐标，这里乘画布自身宽高重新映射，
+ * 所以画布和视频宽高比不一样也不会错位。
+ */
+watch(() => gesture.lastPoint, (point) => {
+  const canvas = canvasEl.value
+  if (!ctx || !canvas) return
+
+  // 手离开画面：断开笔画，下次重新起笔
+  if (!point) {
+    lastGesturePoint = null
+    return
+  }
+
+  const current = { x: point.x * canvas.width, y: point.y * canvas.height }
+
+  if (lastGesturePoint) {
+    strokeSegment(lastGesturePoint, current)
+  }
+
+  lastGesturePoint = current
 })
 
 /**
@@ -52,6 +79,19 @@ function toCanvasPoint(clientX: number, clientY: number) {
     x: (clientX - rect.left) / rect.width * canvas.width,
     y: (clientY - rect.top) / rect.height * canvas.height,
   }
+}
+
+/** 在两个 canvas 坐标点之间连一条线段；颜色和粗细每次现读 store，改了立刻生效 */
+function strokeSegment(from: { x: number; y: number }, to: { x: number; y: number }) {
+  if (!ctx) return
+
+  ctx.strokeStyle = brush.color
+  ctx.lineWidth = brush.size
+
+  ctx.beginPath()
+  ctx.moveTo(from.x, from.y)
+  ctx.lineTo(to.x, to.y)
+  ctx.stroke()
 }
 
 /** 落笔：画一个圆点，保证“单击”也能留下痕迹 */
@@ -71,18 +111,11 @@ function startStroke(clientX: number, clientY: number) {
 
 /** 拖动：从上一个点连一条线段到当前点 */
 function continueStroke(clientX: number, clientY: number) {
-  if (!drawing || !ctx || !lastPoint) return
+  if (!drawing || !lastPoint) return
 
   const point = toCanvasPoint(clientX, clientY)
 
-  // 每次 move 都重新读 store，这样改颜色/粗细立刻生效
-  ctx.strokeStyle = brush.color
-  ctx.lineWidth = brush.size
-
-  ctx.beginPath()
-  ctx.moveTo(lastPoint.x, lastPoint.y)
-  ctx.lineTo(point.x, point.y)
-  ctx.stroke()
+  strokeSegment(lastPoint, point)
 
   lastPoint = point
 }
@@ -124,6 +157,7 @@ function clear() {
 
   drawing = false
   lastPoint = null
+  lastGesturePoint = null
 }
 
 defineExpose({ clear })
