@@ -1,5 +1,5 @@
 {
-  "name": "nuxt-app",
+  "name": "frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,20 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.91",
+    "@mediapipe/tasks-vision": "^1.1.0",
+    "@pinia/nuxt": "^1.0.2",
+    "@vueuse/core": "^15.0.0",
+    "ai": "^7.0.137",
     "nuxt": "^3.21.11",
+    "onnxruntime-web": "^1.30.0",
+    "pinia": "^4.0.3",
     "vue": "^3.5.40",
-    "vue-router": "^5.2.0"
+    "vue-router": "^5.2.0",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3"
   }
 }
