@@ -2,20 +2,31 @@
   <div class="border rounded p-4 bg-white">
     <h2 class="font-semibold">画布区</h2>
 
-    <canvas
-      ref="canvasEl"
-      width="800"
-      height="600"
-      class="mt-2 border bg-white cursor-crosshair max-w-full touch-none"
-      @mousedown="onMouseDown"
-      @mousemove="onMouseMove"
-      @mouseup="onPointerUp"
-      @mouseleave="onPointerUp"
-      @touchstart.prevent="onTouchStart"
-      @touchmove.prevent="onTouchMove"
-      @touchend.prevent="onPointerUp"
-      @touchcancel.prevent="onPointerUp"
-    />
+    <!-- 引导层要和画布像素级对齐，所以两层必须叠在同一个盒子里 -->
+    <div class="relative mt-2 w-[800px] max-w-full">
+      <canvas
+        ref="canvasEl"
+        width="800"
+        height="600"
+        class="block w-full border bg-white cursor-crosshair touch-none"
+        @mousedown="onMouseDown"
+        @mousemove="onMouseMove"
+        @mouseup="onPointerUp"
+        @mouseleave="onPointerUp"
+        @touchstart.prevent="onTouchStart"
+        @touchmove.prevent="onTouchMove"
+        @touchend.prevent="onPointerUp"
+        @touchcancel.prevent="onPointerUp"
+      />
+
+      <!-- 【实验引导线，实验结束后删除】只当采集参照，pointer-events-none 不挡鼠标画线 -->
+      <canvas
+        ref="guideEl"
+        width="800"
+        height="600"
+        class="absolute inset-0 w-full h-full pointer-events-none opacity-20"
+      />
+    </div>
   </div>
 </template>
 
@@ -24,6 +35,8 @@ const brush = useBrushStore()
 const gesture = useGestureStore()
 
 const canvasEl = ref<HTMLCanvasElement | null>(null)
+/** 【实验引导线，实验结束后删除】参照层，clear() 不会碰它 */
+const guideEl = ref<HTMLCanvasElement | null>(null)
 
 let ctx: CanvasRenderingContext2D | null = null
 /** 是否处于“按下并拖动”状态 */
@@ -39,7 +52,61 @@ onMounted(() => {
 
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+
+  drawGuide()
 })
+
+/**
+ * 【实验引导线，实验结束后删除】
+ * 每次采一组前只留一条：把另外两条注释掉，手沿着留下的那条画。
+ * 坐标用的是画布内部坐标系（800×600），和真实笔迹同一个参考系。
+ */
+function drawGuide() {
+  const guide = guideEl.value?.getContext('2d')
+  if (!guide) return
+
+  /**
+   * 三条引导线共用的样式。
+   * 抽成函数是为了切换图形时不用手动搬样式——否则取消注释圆的时候，
+   * 画笔会还是上一条线的 #ccc / lineWidth 3，画出来又细又浅。
+   */
+  const baseStyle = () => {
+    guide.strokeStyle = '#aaa'   // 浅灰，不抢视线
+    guide.lineWidth = 8          // 从 3 加粗到 8
+    guide.lineCap = 'round'
+  }
+
+  // ===== 每次采一组前只留一条：把不用的那两条注释掉 =====
+
+  // 1. 水平线：y = 300
+  baseStyle()
+
+  // 主线：x 从 120 到 680，占画布宽的 70%
+  guide.beginPath()
+  guide.moveTo(120, 300)
+  guide.lineTo(680, 300)
+  guide.stroke()
+
+  // 起笔区：左端一个小圆，提示从这里开始
+  guide.fillStyle = '#ccc'
+  guide.beginPath()
+  guide.arc(120, 300, 20, 0, Math.PI * 2)
+  guide.fill()
+
+  // 终点区：右端一个方框，线正好落在它中心
+  guide.strokeStyle = '#ccc'
+  guide.lineWidth = 3
+  guide.strokeRect(660, 280, 40, 40)
+
+  // 2. 圆：圆心 (400,300)，半径 150
+  // baseStyle()
+  // guide.beginPath(); guide.arc(400, 300, 150, 0, Math.PI * 2); guide.stroke()
+
+  // 3. 字母 S：两个半圆拼起来
+  // baseStyle()
+  // guide.beginPath(); guide.arc(400, 220, 80, Math.PI * 0.5, Math.PI * 1.5); guide.stroke()
+  // guide.beginPath(); guide.arc(400, 380, 80, Math.PI * 1.5, Math.PI * 0.5); guide.stroke()
+}
 
 /**
  * 食指尖坐标一变就画一段线。

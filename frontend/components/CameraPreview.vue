@@ -179,6 +179,10 @@ function drawLandmarks(points: { x: number, y: number }[] | null) {
   }
 }
 
+// 【临时采集代码，实验结束后可删除】固定 30 FPS 采样，让不同轨迹的帧数差异小很多
+let lastSampleTs = 0
+const SAMPLE_INTERVAL = 1000 / 30
+
 /**
  * 食指尖的归一化坐标写进 gesture store，给 DrawingCanvas 用。
  * 存的就是 0–1，画布那边再乘自己的 width/height，两边宽高比不一致也不会错位。
@@ -192,7 +196,25 @@ function syncIndexFingertip(points: { x: number, y: number }[] | null) {
     return
   }
 
-  gesture.setLastPoint({ x: indexTip.x, y: indexTip.y })
+  // 【临时采集代码，实验结束后删除】
+  const now = performance.now()
+  if (now - lastSampleTs >= SAMPLE_INTERVAL) {
+    lastSampleTs = now
+
+    if (typeof window !== 'undefined') {
+      ;(window as any).__fingerTrace = (window as any).__fingerTrace || []
+      ;(window as any).__fingerTrace.push({
+        t: now,
+        x: 1 - indexTip.x,   // 用翻转后的 x，和写进 store 的坐标保持一致
+        y: indexTip.y,
+      })
+    }
+  }
+
+  // 摄像头画面对用户来说是镜像的：人往自己右边挥手，画面里 x 反而变小。
+  // 所以写进 store 之前把 x 翻过来，和用户自己的左右方向对齐；y 上下方向没问题，不动。
+  // 注意：上面 drawLandmarks() 里的关键点不能翻，那一层必须和 video 画面像素对齐。
+  gesture.setLastPoint({ x: 1 - indexTip.x, y: indexTip.y })
 }
 
 /** 关闭摄像头：释放设备，并清掉上一次的错误提示 */
