@@ -31,7 +31,7 @@
     </div>
 
     <!-- 模型/识别相关的提示单独放，不遮挡摄像头画面 -->
-    <p v-if="trackingError" class="mt-2 text-sm text-amber-600">{{ trackingError }}</p>
+    <p v-if="statusError" class="mt-2 text-sm text-amber-600">{{ statusError }}</p>
 
     <div class="mt-2 flex items-center gap-2">
       <button
@@ -50,7 +50,7 @@
         关闭摄像头
       </button>
 
-      <span v-if="isActive && !ready && !trackingError" class="text-sm text-gray-500">手部模型加载中…</span>
+      <span v-if="isActive && !ready && !statusError" class="text-sm text-gray-500">手部模型加载中…</span>
       <span v-else-if="isActive && ready" class="text-sm text-green-600">
         {{ landmarks ? '已识别到手' : '未检测到手' }}
       </span>
@@ -61,15 +61,19 @@
 <script setup lang="ts">
 const gesture = useGestureStore()
 
-/** 手部关键点识别：ready 之前不能调 detect */
+/** 手部关键点识别：推理跑在 Worker 里，结果异步写进 landmarks */
 const {
   landmarks,
   ready,
+  busy,
   error: trackingError,
   load,
   detect,
   close,
 } = useHandTracking()
+
+/** 滑动平均：x、y 各自独立缓冲 */
+const { smoothX, smoothY, reset: resetSmoothing } = useSmoothing()
 
 /** <video> 元素，MediaStream 挂到它的 srcObject 上 */
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -80,17 +84,32 @@ const stream = ref<MediaStream | null>(null)
 const isActive = ref(false)
 const isStarting = ref(false)
 const errorMessage = ref('')
+/** 抓帧失败（createImageBitmap 报错）的提示 */
+const captureError = ref('')
+
+/** 模板里只显示一条错误，模型错误优先 */
+const statusError = computed(() => trackingError.value || captureError.value)
 
 /** requestAnimationFrame 句柄，关摄像头时必须 cancel，否则循环会一直跑 */
 let rafId = 0
-/** 上一帧的 video.currentTime，用来保证同一帧只推理一次 */
+/** 上一帧的 video.currentTime，避免对同一帧重复推理 */
 let lastVideoTime = -1
+/** 上一次真正发起推理的时间 */
+let lastDetectTs = 0
+
+/**
+ * 抓帧和推理的帧率上限。
+ * 不按“每 2 帧处理一次”来卡：rAF 是跟着显示器刷新的（通常 60Hz），摄像头可能是 30 也可能是 60fps，
+ * 按时间间隔卡才是稳定的 30 FPS。
+ */
+const MIN_FRAME_INTERVAL = 1000 / 30
 
 /** 打开摄像头：640×480 前置，不采集音频（分辨率不要调高，否则 MediaPipe 推理会慢） */
 async function startCamera() {
   if (isStarting.value || isActive.value) return
 
   errorMessage.value = ''
+  captureError.value = ''
   isStarting.value = true
 
   // file:// 或非安全上下文下 navigator.mediaDevices 直接不存在
@@ -116,7 +135,7 @@ async function startCamera() {
 
     isActive.value = true
 
-    // 摄像头通了才开始识别：先等模型 ready，再起逐帧循环
+    // 摄像头通了才开始识别：先等 Worker 把模型加载完，再起逐帧循环
     await startTracking()
   } catch (err) {
     releaseStream()
@@ -126,7 +145,7 @@ async function startCamera() {
   }
 }
 
-/** 启动识别循环。模型加载失败时 load() 内部会把错误写进 trackingError，这里直接返回 */
+/** 启动抓帧循环。模型加载失败时 load() 内部会把错误写进 trackingError，这里直接返回 */
 async function startTracking() {
   await load()
 
@@ -134,28 +153,66 @@ async function startTracking() {
   if (!ready.value || !isActive.value) return
   if (rafId) return
 
+  lastVideoTime = -1
+  lastDetectTs = 0
+  resetSmoothing()
+
   const loop = () => {
     rafId = requestAnimationFrame(loop)
-    runDetection()
+    captureFrame()
   }
 
   rafId = requestAnimationFrame(loop)
 }
 
-/** 每一帧：同一帧不重复推理 → 推理 → 画关键点 → 把食指尖写进 store */
-function runDetection() {
+/**
+ * 每一帧：过三道闸 → 把当前帧抓成 ImageBitmap → 转移给 Worker。
+ * 结果不在这一帧回来，等 landmarks 变化后由下面的 watch 处理。
+ */
+function captureFrame() {
   const video = videoEl.value
   if (!video || !isActive.value || !ready.value) return
 
-  // video.currentTime 没变说明还是上一帧，重复调 detectForVideo 是浪费
-  if (video.currentTime === lastVideoTime) return
-  lastVideoTime = video.currentTime
+  // 闸 1：上一条还在推理，先不发新的，否则 Worker 队列会越积越多、画面越拖越晚
+  if (busy.value) return
 
-  const points = detect(video, performance.now())
+  // 闸 2：video.currentTime 没变说明还是同一帧
+  if (video.currentTime === lastVideoTime) return
+
+  // 闸 3：帧率压到 30 FPS 以内
+  const now = performance.now()
+  if (now - lastDetectTs < MIN_FRAME_INTERVAL) return
+
+  lastVideoTime = video.currentTime
+  lastDetectTs = now
+
+  // Worker 里没有 DOM，拿不到 <video>，所以先抓成一帧位图再转移过去
+  createImageBitmap(video)
+    .then((bitmap) => {
+      if (!isActive.value) {
+        // 抓图这段时间里摄像头被关了，这张图没人接手，自己关掉
+        bitmap.close()
+        return
+      }
+      // detect() 内部会把 bitmap 转移给 Worker，之后由 Worker close
+      detect(bitmap, performance.now())
+    })
+    .catch((err) => {
+      captureError.value = `抓帧失败：${(err as Error | undefined)?.message ?? String(err)}`
+    })
+}
+
+/**
+ * Worker 回传的关键点到了：先画到覆盖层，再取食指尖写进 store。
+ * landmarks 是异步回来的，所以放在 watch 里，而不是发起推理的那一帧里。
+ */
+watch(landmarks, (points) => {
+  // 摄像头已经关了但这条结果才回来：丢掉，否则画布上会多画一笔
+  if (!isActive.value) return
 
   drawLandmarks(points)
   syncIndexFingertip(points)
-}
+})
 
 /** 把 21 个关键点画到覆盖层上：归一化坐标 × canvas 宽高 */
 function drawLandmarks(points: { x: number, y: number }[] | null) {
@@ -185,36 +242,37 @@ const SAMPLE_INTERVAL = 1000 / 30
 
 /**
  * 食指尖的归一化坐标写进 gesture store，给 DrawingCanvas 用。
- * 存的就是 0–1，画布那边再乘自己的 width/height，两边宽高比不一致也不会错位。
+ * 存的是「镜像翻转 + 平滑后」的 0–1 坐标，画布那边再乘自己的 width/height。
  * 检测不到手时写 null，让画布断开当前笔画。
  */
 function syncIndexFingertip(points: { x: number, y: number }[] | null) {
   const indexTip = points?.[8]
 
   if (!indexTip) {
+    // 手丢了等于抬笔：清空平滑缓冲，否则下一笔起点会被上一笔末尾“粘”住
+    resetSmoothing()
     gesture.setLastPoint(null)
     return
   }
 
-  // 【临时采集代码，实验结束后删除】
+  // 摄像头画面对用户来说是镜像的：人往自己右边挥手，画面里 x 反而变小。
+  // 先翻转再平滑——翻转是线性的，先后顺序不影响结果，但放一起更好读。
+  // 注意：上面 drawLandmarks() 里的关键点不能翻，那一层必须和 video 画面像素对齐。
+  const x = smoothX(1 - indexTip.x)
+  const y = smoothY(indexTip.y)
+
+  // 【临时采集代码，实验结束后删除】存的就是真正画到画布上的那个值（已翻转、已平滑）
   const now = performance.now()
   if (now - lastSampleTs >= SAMPLE_INTERVAL) {
     lastSampleTs = now
 
     if (typeof window !== 'undefined') {
       ;(window as any).__fingerTrace = (window as any).__fingerTrace || []
-      ;(window as any).__fingerTrace.push({
-        t: now,
-        x: 1 - indexTip.x,   // 用翻转后的 x，和写进 store 的坐标保持一致
-        y: indexTip.y,
-      })
+      ;(window as any).__fingerTrace.push({ t: now, x, y })
     }
   }
 
-  // 摄像头画面对用户来说是镜像的：人往自己右边挥手，画面里 x 反而变小。
-  // 所以写进 store 之前把 x 翻过来，和用户自己的左右方向对齐；y 上下方向没问题，不动。
-  // 注意：上面 drawLandmarks() 里的关键点不能翻，那一层必须和 video 画面像素对齐。
-  gesture.setLastPoint({ x: 1 - indexTip.x, y: indexTip.y })
+  gesture.setLastPoint({ x, y })
 }
 
 /** 关闭摄像头：释放设备，并清掉上一次的错误提示 */
@@ -223,7 +281,7 @@ function stopCamera() {
   errorMessage.value = ''
 }
 
-/** 停掉识别循环，并把覆盖层上残留的关键点擦掉 */
+/** 停掉抓帧循环，并把覆盖层上残留的关键点擦掉 */
 function stopTracking() {
   if (rafId) {
     cancelAnimationFrame(rafId)
@@ -231,6 +289,7 @@ function stopTracking() {
   }
 
   lastVideoTime = -1
+  lastDetectTs = 0
   drawLandmarks(null)
 }
 
@@ -251,8 +310,10 @@ function releaseStream() {
   }
 
   isActive.value = false
+  captureError.value = ''
 
-  // 摄像头都关了，残留在 store 里的手指坐标会让画布继续画
+  // 摄像头都关了：清掉平滑缓冲和残留坐标，否则画布会从旧位置继续画
+  resetSmoothing()
   gesture.setLastPoint(null)
 }
 
@@ -282,10 +343,10 @@ function describeCameraError(err: unknown): string {
 // 切页面/组件卸载时一定要关流，否则摄像头指示灯会一直亮着
 onBeforeUnmount(() => {
   stopCamera()
-  // 模型占着 WASM 和显存，整个组件销毁时一起释放
+  // Worker 占着 WASM 和显存，整个组件销毁时一起释放
   close()
 })
 
-// 暴露给父组件（第 5 天要拿 landmarks 做手势判断时直接用）
+// 暴露给父组件（要拿 landmarks 做手势判断时直接用）
 defineExpose({ videoEl, stream, isActive, landmarks, startCamera, stopCamera })
 </script>
