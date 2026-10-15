@@ -117,8 +117,10 @@ watch(() => gesture.lastPoint, (point) => {
   const canvas = canvasEl.value
   if (!ctx || !canvas) return
 
-  // 手离开画面：断开笔画，下次重新起笔
-  if (!point) {
+  // 手离开画面、或还没进入绘制状态：断开笔画，下次重新起笔。
+  // 状态不是 drawing 时也断开：CameraPreview 会把 lastPoint 置空，但抬笔那一帧两者可能
+  // 先后到达，这里兜一层，免得画出一条横贯画布的长线。
+  if (!point || gesture.state !== 'drawing') {
     lastGesturePoint = null
     return
   }
@@ -130,6 +132,15 @@ watch(() => gesture.lastPoint, (point) => {
   }
 
   lastGesturePoint = current
+})
+
+/**
+ * 握拳清空：useGesture 触发后 CameraPreview 会把 store 里的计数器 +1，这里监听到变化就清画布。
+ * 【坑】必须写成 watch(() => gesture.clearRequested, ...)：直接传 gesture.clearRequested
+ * 只是把当时那个数字当快照传进去，之后计数器再怎么变都不会再触发。
+ */
+watch(() => gesture.clearRequested, () => {
+  clear()
 })
 
 /**

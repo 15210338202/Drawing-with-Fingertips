@@ -33,7 +33,7 @@
     <!-- 模型/识别相关的提示单独放，不遮挡摄像头画面 -->
     <p v-if="statusError" class="mt-2 text-sm text-amber-600">{{ statusError }}</p>
 
-    <div class="mt-2 flex items-center gap-2">
+    <div class="mt-2 flex flex-wrap items-center gap-2">
       <button
         v-if="!isActive"
         class="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
@@ -53,6 +53,11 @@
       <span v-if="isActive && !ready && !statusError" class="text-sm text-gray-500">手部模型加载中…</span>
       <span v-else-if="isActive && ready" class="text-sm text-green-600">
         {{ landmarks ? '已识别到手' : '未检测到手' }}
+      </span>
+
+      <!-- 手势状态：调滑杆的时候靠它确认到底有没有判定成捏合 -->
+      <span v-if="isActive && ready && landmarks" class="text-sm" :class="gestureState === 'drawing' ? 'text-blue-600' : 'text-gray-500'">
+        {{ gestureState === 'drawing' ? '绘制中（已捏合）' : '待机：捏合开始画，握拳 1 秒清空' }}
       </span>
     </div>
   </div>
@@ -74,6 +79,17 @@ const {
 
 /** 滑动平均：x、y 各自独立缓冲 */
 const { smoothX, smoothY, reset: resetSmoothing } = useSmoothing()
+
+/** 手势状态机：捏合进入绘制、松开退出、握拳清空 */
+const {
+  state: gestureState,
+  update: updateGesture,
+  onClear,
+  reset: resetGesture,
+} = useGesture()
+
+// 握拳清空通过 store 计数器通知画布，不直接调 canvas 的方法，两边保持解耦
+onClear(() => gesture.requestClear())
 
 /** <video> 元素，MediaStream 挂到它的 srcObject 上 */
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -156,6 +172,7 @@ async function startTracking() {
   lastVideoTime = -1
   lastDetectTs = 0
   resetSmoothing()
+  resetGesture()
 
   const loop = () => {
     rafId = requestAnimationFrame(loop)
@@ -203,7 +220,7 @@ function captureFrame() {
 }
 
 /**
- * Worker 回传的关键点到了：先画到覆盖层，再取食指尖写进 store。
+ * Worker 回传的关键点到了：画到覆盖层 → 推进手势状态机 → 决定要不要写 lastPoint。
  * landmarks 是异步回来的，所以放在 watch 里，而不是发起推理的那一帧里。
  */
 watch(landmarks, (points) => {
@@ -211,6 +228,9 @@ watch(landmarks, (points) => {
   if (!isActive.value) return
 
   drawLandmarks(points)
+
+  // 顺序不能反：syncIndexFingertip 要看这一帧更新后的手势状态
+  updateGesture(points)
   syncIndexFingertip(points)
 })
 
@@ -228,7 +248,7 @@ function drawLandmarks(points: { x: number, y: number }[] | null) {
     ctx.fillRect(point.x * canvas.width - 3, point.y * canvas.height - 3, 6, 6)
   }
 
-  // 食指尖（索引 8）单独标红：今天画线用的就是它
+  // 食指尖（索引 8）单独标红：画线用的就是它
   const indexTip = points[8]
   if (indexTip) {
     ctx.fillStyle = '#ef4444'
@@ -243,13 +263,15 @@ const SAMPLE_INTERVAL = 1000 / 30
 /**
  * 食指尖的归一化坐标写进 gesture store，给 DrawingCanvas 用。
  * 存的是「镜像翻转 + 平滑后」的 0–1 坐标，画布那边再乘自己的 width/height。
- * 检测不到手时写 null，让画布断开当前笔画。
+ * 只有捏合（drawing）状态才写值，其余情况写 null 让画布断开笔画。
  */
 function syncIndexFingertip(points: { x: number, y: number }[] | null) {
   const indexTip = points?.[8]
 
-  if (!indexTip) {
-    // 手丢了等于抬笔：清空平滑缓冲，否则下一笔起点会被上一笔末尾“粘”住
+  // 待机、手丢了、松开手指，都等于抬笔：
+  // 必须写 null 断开笔画，否则画布会把上一笔的末尾和下一笔的起点连成一条长线。
+  if (!indexTip || gestureState.value !== 'drawing') {
+    // 顺便清空平滑缓冲，否则下一笔起点会被上一笔末尾“粘”住
     resetSmoothing()
     gesture.setLastPoint(null)
     return
@@ -312,7 +334,9 @@ function releaseStream() {
   isActive.value = false
   captureError.value = ''
 
-  // 摄像头都关了：清掉平滑缓冲和残留坐标，否则画布会从旧位置继续画
+  // 摄像头都关了：手势状态、平滑缓冲、残留坐标一起清掉，
+  // 否则状态会卡在 drawing，重新开摄像头时画布会从旧位置继续画
+  resetGesture()
   resetSmoothing()
   gesture.setLastPoint(null)
 }
