@@ -127,3 +127,11 @@ letterS: jerk_avg=0.001033 (n=5)
 | -------------- | -------------- | --------------------------- | -------- | -------------- |
 | "把它变成国风" | deepseek-flash | reply + reasoning + actions | 约 2.36s | 结构化输出正确 |
 | 错误 API Key   | —              | { fallback: true }          | —        | 兜底生效       |
+
+
+
+
+
+## 事故记录（10/20）
+
+`.env.example` 误写入真实 key，被 GitHub Push Protection 拦截。已撤销旧 key、修正文件、清理 commit 历史、重推成功。教训：`.env.example` 只放键名。

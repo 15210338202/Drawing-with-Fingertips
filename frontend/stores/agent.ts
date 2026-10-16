@@ -15,6 +15,11 @@ export const useAgentStore = defineStore('agent', {
   state: () => ({
     messages: [] as AgentMessage[],
     loading: false,
+    /**
+     * 正在流式接收回答。
+     * 和 loading 的区别：loading 是「等 /api/agent 一次性返回」，streaming 是「/api/chat 正在一段段吐字」。
+     */
+    streaming: false,
     /** AI 的判断依据，界面上作为“思考可视化”展示 */
     reasoning: [] as string[],
     /** 上一次返回的动作列表 */
@@ -35,6 +40,9 @@ export const useAgentStore = defineStore('agent', {
     setLoading(v: boolean) {
       this.loading = v
     },
+    setStreaming(v: boolean) {
+      this.streaming = v
+    },
     setReasoning(arr: string[]) {
       this.reasoning = arr
     },
@@ -47,9 +55,33 @@ export const useAgentStore = defineStore('agent', {
     setHasSketch(v: boolean) {
       this.hasSketch = v
     },
+
+    /**
+     * 流式过程中刷新最后一条 assistant 消息。
+     * 注意传进来的是**完整文本**，不是增量 —— 所以这里是替换而不是追加。
+     * 每次 push 一条新消息的话消息列表会瞬间爆掉。
+     */
+    updateLastAssistant(content: string) {
+      const last = this.messages[this.messages.length - 1]
+      if (last && last.role === 'assistant') {
+        last.content = content
+      }
+    },
+
+    /** 中断流式回答：停掉状态，并给还没吐出任何字的占位消息一个交代 */
+    abortStream() {
+      this.streaming = false
+
+      const last = this.messages[this.messages.length - 1]
+      if (last && last.role === 'assistant' && !last.content) {
+        last.content = '（已停止）'
+      }
+    },
+
     reset() {
       this.messages = []
       this.loading = false
+      this.streaming = false
       this.reasoning = []
       this.lastActions = []
       this.fallback = false
