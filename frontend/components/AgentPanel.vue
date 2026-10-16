@@ -44,26 +44,29 @@
       v-model="input"
       :disabled="store.loading"
       class="w-full rounded border px-2 py-1 disabled:bg-gray-100"
-      placeholder="说点什么..."
-      @keyup.enter="submitChat"
+      placeholder="说点什么，比如「把它变成国风」"
+      @keyup.enter="submitSend"
     />
 
     <div class="flex gap-2">
+      <!-- 主入口：走 /api/agent，解析意图并串行执行动作（改颜色 / 检索风格 / 生成图片） -->
       <button
         class="rounded bg-green-500 px-3 py-1 text-white disabled:opacity-50"
         :disabled="busy || !input.trim()"
-        @click="submitChat"
+        title="解析意图并执行动作：改颜色、检索风格、生成图片"
+        @click="submitSend"
       >
-        {{ store.streaming ? '生成中...' : '发送' }}
+        {{ store.executing ? '执行中...' : store.loading ? '解析中...' : '发送' }}
       </button>
 
+      <!-- 次入口：走 /api/chat，只聊天，不执行任何动作 -->
       <button
         class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-50"
         :disabled="busy || !input.trim()"
-        title="走 /api/agent，一次性拿到回复 + 动作 + 判断依据"
-        @click="submitIntent"
+        title="只聊天，边生成边显示，不会改动画布"
+        @click="submitStream"
       >
-        解析意图
+        {{ store.streaming ? '生成中...' : '流式对话' }}
       </button>
 
       <!-- 只有正在流式接收时才出现 -->
@@ -86,26 +89,30 @@ const input = ref('')
 /** 消息列表容器，用来控制自动滚动 */
 const listEl = ref<HTMLDivElement | null>(null)
 
-/** 两种请求都不能并发提交 */
-const busy = computed(() => store.loading || store.streaming)
+/** 三种状态都不能并发提交：等模型 / 收流 / 执行动作 */
+const busy = computed(() => store.loading || store.streaming || store.executing)
 
-/** 流式入口：边收边显示 */
-async function submitChat() {
+/**
+ * 主入口：走 send（/api/agent）。
+ * 它会一次性拿到 reply + actions，然后串行执行动作 ——
+ * 改颜色、检索风格、生成图片都在这条路上，点「发送」和回车都走这里。
+ */
+async function submitSend() {
   const text = input.value.trim()
   if (!text || busy.value) return
 
   // 先清空输入框：等 await 回来再清，用户会以为没发出去、又点一次
   input.value = ''
-  await chatStream(text)
+  await send(text)
 }
 
-/** 工具解析入口：一次性拿 reply + actions + reasoning */
-async function submitIntent() {
+/** 次入口：走 chatStream（/api/chat），只聊天、不执行动作 */
+async function submitStream() {
   const text = input.value.trim()
   if (!text || busy.value) return
 
   input.value = ''
-  await send(text)
+  await chatStream(text)
 }
 
 // 消息一多、或者流式内容变长，就滚到底部

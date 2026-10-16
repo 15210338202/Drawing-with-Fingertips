@@ -38,18 +38,17 @@ export default defineEventHandler(async (event) => {
     )
     .map(m => ({ role: m.role, content: m.content.trim() }))
 
-  if (!messages.length) {
-    throw createError({ statusCode: 400, statusMessage: 'messages 不能为空' })
-  }
-
   const apiKey = process.env.DEEPSEEK_API_KEY
-  if (!apiKey) {
-    throw createError({ statusCode: 500, statusMessage: '缺少环境变量 DEEPSEEK_API_KEY（放在 frontend/.env）' })
-  }
+
+  // 两个前置校验先判出来，因为状态码必须在 flushHeaders() 之前定下来
+  const invalidRequest = messages.length === 0
+  const missingKey = !apiKey
 
   const res = event.node.res
 
-  // 我们要手动把 token 一段段写出去，这几个 SSE 响应头必须自己设
+  // 统一用 SSE 回答，**连错误也是**：响应体永远是一条条 data: 帧。
+  // 这样前端只需要一条解析路径；状态码照实给，方便日志和监控区分「客户端传错」和「服务端没配好」。
+  setResponseStatus(event, invalidRequest ? 400 : missingKey ? 500 : 200)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
   res.setHeader('Connection', 'keep-alive')
@@ -57,13 +56,25 @@ export default defineEventHandler(async (event) => {
   res.setHeader('X-Accel-Buffering', 'no')
   res.flushHeaders()
 
-  const deepseek = createOpenAI({ baseURL: DEEPSEEK_BASE_URL, apiKey, name: 'deepseek' })
+  if (invalidRequest) {
+    writeEvent(res, { error: '请求里没有有效的 messages' })
+    res.end()
+    return
+  }
+
+  if (missingKey) {
+    writeEvent(res, { error: '服务端没有配置 DEEPSEEK_API_KEY，请写进 frontend/.env' })
+    res.end()
+    return
+  }
 
   // 客户端断开（关页面、点停止）时立刻中止生成，不然模型还在白烧 token。
   // 注意：StreamTextResult 上没有 abort() 方法，取消要靠传进去的 abortSignal ——
-  // 很多示例里写的 result.abort() 在这个版本是没有的，写了也不会报错（可选调用），但根本不生效。
+  // 很多示例里写的 result.abort() 在这个版本是没有的，写了也不报错（可选调用），但根本不生效。
   const abortController = new AbortController()
   event.node.req.on('close', () => abortController.abort())
+
+  const deepseek = createOpenAI({ baseURL: DEEPSEEK_BASE_URL, apiKey, name: 'deepseek' })
 
   const result = streamText({
     model: deepseek.chat(DEEPSEEK_MODEL),
@@ -79,8 +90,11 @@ export default defineEventHandler(async (event) => {
     }
     writeEvent(res, { done: true })
   } catch (err) {
-    // 客户端主动 abort 也会走到这里，这时连接已经断了，writeEvent 内部会跳过
-    writeEvent(res, { error: (err as Error)?.message ?? String(err) })
+    // 用户主动点「停止」时会走到这里，那不是错误，什么都不用发
+    if (!abortController.signal.aborted) {
+      console.error('[chat] 生成失败：', err)
+      writeEvent(res, { error: (err as Error)?.message ?? String(err) })
+    }
   } finally {
     if (!res.writableEnded) res.end()
   }

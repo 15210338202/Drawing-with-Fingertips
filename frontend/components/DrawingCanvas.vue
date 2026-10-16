@@ -26,6 +26,36 @@
         height="600"
         class="absolute inset-0 w-full h-full pointer-events-none opacity-20"
       />
+
+      <!-- 生成结果：先盖在上面给用户看，点「贴回画布」才真正画进去 -->
+      <div
+        v-if="agent.generatedImage"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 p-4"
+      >
+        <img
+          :src="agent.generatedImage"
+          alt="生成结果"
+          class="max-h-[75%] max-w-full rounded object-contain"
+        />
+
+        <p v-if="pasteError" class="max-w-full text-center text-xs text-amber-300">{{ pasteError }}</p>
+
+        <div class="flex gap-2">
+          <button
+            class="rounded bg-blue-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+            :disabled="pasting"
+            @click="pasteGenerated"
+          >
+            {{ pasting ? '贴回中...' : '贴回画布' }}
+          </button>
+          <button
+            class="rounded border border-white/60 px-3 py-1 text-sm text-white"
+            @click="closeGenerated"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -39,6 +69,10 @@ const canvasEl = ref<HTMLCanvasElement | null>(null)
 /** 【实验引导线，实验结束后删除】参照层，clear() 不会碰它 */
 const guideEl = ref<HTMLCanvasElement | null>(null)
 
+/** 贴回画布时的报错提示（比如生成图有跨域限制，画不进 canvas） */
+const pasteError = ref('')
+const pasting = ref(false)
+
 let ctx: CanvasRenderingContext2D | null = null
 /** 是否处于“按下并拖动”状态 */
 let drawing = false
@@ -48,6 +82,10 @@ let lastPoint: { x: number; y: number } | null = null
 let lastGesturePoint: { x: number; y: number } | null = null
 
 onMounted(() => {
+  // 把导出方法挂到 store 上：useAgent 在 AgentPanel 里跑，拿不到这里的模板 ref。
+  // 必须放在下面那个提前 return 之前，否则 canvas 没就绪时桥就断了。
+  agent.setSketchExporter(exportSketch)
+
   ctx = canvasEl.value?.getContext('2d') ?? null
   if (!ctx) return
 
@@ -56,6 +94,115 @@ onMounted(() => {
 
   drawGuide()
 })
+
+onBeforeUnmount(() => {
+  agent.setSketchExporter(null)
+})
+
+/**
+ * 导出草图的放大目标高度。
+ * 图像 API 对输入尺寸有下限（高 ≥ 512），导出时统一放大到这个高度更稳妥。
+ */
+const EXPORT_TARGET_HEIGHT = 768
+
+/**
+ * 导出当前草图（PNG dataURL），供 /api/generate 使用。
+ *
+ * 三个要点：
+ * 1. 新建临时 canvas 先铺白底再画上去 —— 画布本身是透明的，直接 toDataURL 出来的 PNG
+ *    透明区在图像 API 那边会变成黑色。
+ * 2. 等比放大到高度 EXPORT_TARGET_HEIGHT：画布是 800×600，放大后是 1024×768，
+ *    max(1, …) 保证只在高度不足时才放大，原图本来就大就不动它，避免无谓重采样。
+ * 3. 引导层是独立的 canvas，不会被导出。
+ */
+function exportSketch() {
+  const source = canvasEl.value
+  if (!source) return null
+
+  const scale = Math.max(1, EXPORT_TARGET_HEIGHT / source.height)
+
+  const out = document.createElement('canvas')
+  out.width = Math.round(source.width * scale)
+  out.height = Math.round(source.height * scale)
+
+  const outCtx = out.getContext('2d')
+  if (!outCtx) return null
+
+  outCtx.fillStyle = '#ffffff'
+  outCtx.fillRect(0, 0, out.width, out.height)
+  // 直接给目标尺寸，让浏览器一次完成缩放，不要分两步画
+  outCtx.drawImage(source, 0, 0, out.width, out.height)
+
+  return out.toDataURL('image/png')
+}
+
+/** 关掉生成结果浮层，画布保持原样 */
+function closeGenerated() {
+  pasteError.value = ''
+  agent.setGeneratedImage(null)
+}
+
+/**
+ * 把生成图贴回画布。
+ * 贴上去是 drawImage 而不是替换画布，用户之后还能继续在上面画。
+ */
+async function pasteGenerated() {
+  const src = agent.generatedImage
+  const canvas = canvasEl.value
+  if (!src || !ctx || !canvas) return
+
+  pasting.value = true
+  pasteError.value = ''
+
+  try {
+    const image = await loadImage(src)
+
+    // 按比例缩放居中：生成图尺寸和画布多半不一样，硬拉会变形
+    const scale = Math.min(canvas.width / image.width, canvas.height / image.height)
+    const width = image.width * scale
+    const height = image.height * scale
+
+    ctx.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
+
+    agent.setHasSketch(true)
+    agent.setGeneratedImage(null)
+  } catch (err) {
+    console.error('[canvas] 贴回失败：', err)
+    pasteError.value = '这张图贴不进画布（多半是跨域限制），可以先右键另存，或让服务端转存后再试'
+  } finally {
+    pasting.value = false
+  }
+}
+
+/**
+ * 加载图片。
+ * 上游给的 https 图直接画进 canvas 会污染画布，之后 toDataURL 会抛安全错误，
+ * 所以先 fetch 成 dataURL 再用；跨域不允许时抛错，由调用方提示用户。
+ */
+async function loadImage(src: string) {
+  const dataUrl = src.startsWith('data:') ? src : await toDataUrl(src)
+
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('图片加载失败'))
+    image.src = dataUrl
+  })
+}
+
+async function toDataUrl(url: string) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`拉取生成图失败：HTTP ${response.status}`)
+
+  const blob = await response.blob()
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('图片转 dataURL 失败'))
+    reader.readAsDataURL(blob)
+  })
+}
 
 /**
  * 【实验引导线，实验结束后删除】
@@ -139,6 +286,7 @@ watch(() => gesture.lastPoint, (point) => {
  * 握拳清空：useGesture 触发后 CameraPreview 会把 store 里的计数器 +1，这里监听到变化就清画布。
  * 【坑】必须写成 watch(() => gesture.clearRequested, ...)：直接传 gesture.clearRequested
  * 只是把当时那个数字当快照传进去，之后计数器再怎么变都不会再触发。
+ * AI 的 clear 动作走的也是这条通路。
  */
 watch(() => gesture.clearRequested, () => {
   clear()
@@ -248,5 +396,5 @@ function clear() {
   agent.setHasSketch(false)
 }
 
-defineExpose({ clear })
+defineExpose({ clear, exportSketch })
 </script>

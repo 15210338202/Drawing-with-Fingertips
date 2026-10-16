@@ -1,0 +1,92 @@
+[
+  {
+    "id": "gf-01",
+    "title": "水墨国风",
+    "tags": ["国风", "水墨", "传统", "东方", "中国风", "ink"],
+    "prompt": "Chinese ink painting, traditional brush strokes, misty mountains, elegant negative space, monochrome with subtle wash, rice paper texture",
+    "negative": "photo, realistic, 3d render, western style, bright colors",
+    "source": "自建",
+    "styleKey": "guofeng-ink"
+  },
+  {
+    "id": "gf-02",
+    "title": "青绿山水",
+    "tags": ["国风", "山水", "工笔", "青绿", "传统", "landscape"],
+    "prompt": "Chinese blue-green landscape painting, mineral pigments, majestic mountains, traditional gongbi style, fine golden outlines",
+    "negative": "photo, realistic, 3d render, western style",
+    "source": "自建",
+    "styleKey": "guofeng-qinglv"
+  },
+  {
+    "id": "cy-01",
+    "title": "川剧脸谱",
+    "tags": ["川渝", "川剧", "脸谱", "戏曲", "传统", "sichuan opera"],
+    "prompt": "Sichuan opera mask, vivid facial makeup, bold primary colors, symmetrical patterns, dramatic expression, traditional Chinese opera aesthetics",
+    "negative": "photo, realistic portrait, western makeup, muted colors",
+    "source": "自建·川渝文化",
+    "styleKey": "sichuan-opera"
+  },
+  {
+    "id": "cy-02",
+    "title": "川渝烟火",
+    "tags": ["川渝", "火锅", "市井", "夜景", "霓虹", "chongqing"],
+    "prompt": "Chongqing alley at night, neon signs, hotpot steam, dense layered buildings, warm red and teal lights, cinematic street scene",
+    "negative": "clean minimal, daylight, empty street, muted colors",
+    "source": "自建·川渝文化",
+    "styleKey": "chuanyu-neon"
+  },
+  {
+    "id": "sf-01",
+    "title": "赛博霓虹",
+    "tags": ["赛博", "赛博朋克", "科幻", "未来", "霓虹", "cyberpunk", "neon"],
+    "prompt": "cyberpunk illustration, neon glow, holographic signage, rain-slick streets, high contrast magenta and cyan, futuristic city",
+    "negative": "daylight, rustic, watercolor, pastel",
+    "source": "自建",
+    "styleKey": "cyberpunk-neon"
+  },
+  {
+    "id": "wc-01",
+    "title": "清透水彩",
+    "tags": ["水彩", "淡彩", "清新", "手绘", "watercolor"],
+    "prompt": "delicate watercolor illustration, soft washes, bleeding edges, light paper texture, airy pastel palette",
+    "negative": "hard edges, 3d render, neon, dark",
+    "source": "自建",
+    "styleKey": "watercolor-soft"
+  },
+  {
+    "id": "px-01",
+    "title": "像素复古",
+    "tags": ["像素", "复古", "游戏", "怀旧", "pixel"],
+    "prompt": "pixel art, 16-bit retro game sprite, limited palette, crisp pixels, dithering, nostalgic",
+    "negative": "smooth gradient, realistic, photo",
+    "source": "自建",
+    "styleKey": "pixel-retro"
+  },
+  {
+    "id": "ol-01",
+    "title": "厚涂油画",
+    "tags": ["油画", "厚涂", "古典", "oil painting", "impasto"],
+    "prompt": "oil painting, thick impasto brushwork, rich chiaroscuro, classical composition, visible canvas texture",
+    "negative": "flat colors, anime, pixel, neon",
+    "source": "自建",
+    "styleKey": "oil-impasto"
+  },
+  {
+    "id": "mn-01",
+    "title": "极简线稿",
+    "tags": ["极简", "线稿", "简笔", "黑白", "minimal", "line art"],
+    "prompt": "minimal line art, single-weight black strokes, generous white space, elegant simplicity, no shading",
+    "negative": "colorful, shading, texture, 3d",
+    "source": "自建",
+    "styleKey": "minimal-line"
+  },
+  {
+    "id": "an-01",
+    "title": "日系动画",
+    "tags": ["二次元", "动漫", "动画", "日系", "anime"],
+    "prompt": "anime key visual, cel shading, clean lineart, vibrant but soft colors, detailed background, studio quality",
+    "negative": "photo, realistic, oil painting, pixel",
+    "source": "自建",
+    "styleKey": "anime-cel"
+  }
+]

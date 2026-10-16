@@ -7,15 +7,44 @@ export interface AgentReply {
   traceId?: string
 }
 
+/** /api/search-style 的响应，契约见 docs/api.md 第 4 节 */
+interface SearchStyleResponse {
+  results: StyleResult[]
+}
+
+/** /api/generate 的响应，契约见 docs/api.md 第 5 节 */
+interface GenerateResponse {
+  imageUrl: string
+  costMs: number
+  provider: string
+  fallback?: boolean
+  reason?: string
+}
+
 /** 每次最多带多少条历史消息上去，防止聊久了请求体无限增长 */
 const MAX_HISTORY = 20
+
+/** 解析出来的一条 SSE 消息 */
+type StreamEvent =
+  | { type: 'delta', text: string }
+  | { type: 'done' }
+  | { type: 'error', message: string }
 
 export function useAgent() {
   const store = useAgentStore()
   const brush = useBrushStore()
+  const gesture = useGestureStore()
 
   /** 当前流式请求的中断句柄；再次提问或点“停止”都要用它 */
   let controller: AbortController | null = null
+
+  /**
+   * 收尾：把提示追加到已经生成的内容后面。
+   * 已经有半段回答时不要把它冲掉，用户还想看那半段。
+   */
+  function finishWithNotice(accumulated: string, notice: string) {
+    store.updateLastAssistant(accumulated ? `${accumulated}\n\n（${notice}）` : `（${notice}）`)
+  }
 
   /** 按 docs/api.md 的契约组装上下文：AI 靠它判断画布上现在是什么情况 */
   function buildContext() {
@@ -27,13 +56,151 @@ export function useAgent() {
     }
   }
 
+  /** 让画布导出当前草图（白底 PNG dataURL）；画布还没挂载时返回 null */
+  function exportSketch() {
+    return store.sketchExporter?.() ?? null
+  }
+
+  /** 最近一条用户消息，某些 action 缺参数时拿它兜底 */
+  function lastUserText() {
+    for (let i = store.messages.length - 1; i >= 0; i--) {
+      const message = store.messages[i]
+      if (message?.role === 'user') return message.content
+    }
+    return ''
+  }
+
   /**
-   * 非流式入口：走 /api/agent，一次性拿到 reply + actions + reasoning。
+   * 执行一个动作，返回一句给用户看的执行结果。
+   * 每种工具都是独立的一小段，抛错由调用方兜住 —— 一个动作失败不影响后面的。
+   */
+  async function runAction(action: AgentAction): Promise<string> {
+    const args = action.args ?? {}
+
+    switch (action.tool) {
+      case 'set_color': {
+        const color = String(args.color ?? '').trim()
+        if (!color) return '缺少 color 参数，跳过'
+        brush.setColor(color)
+        return `画笔颜色改成 ${color}`
+      }
+
+      case 'set_brush_size': {
+        const size = Number(args.size)
+        if (!Number.isFinite(size)) return '缺少 size 参数，跳过'
+        brush.setSize(Math.min(50, Math.max(1, Math.round(size))))
+        return `笔触粗细改成 ${brush.size}`
+      }
+
+      case 'clear': {
+        // 走 store 计数器通知画布，和握拳清空是同一条通路
+        gesture.requestClear()
+        return '画布已清空'
+      }
+
+      case 'erase':
+        return '橡皮擦还没实现（需要先做历史记录栈），这次跳过'
+
+      case 'export': {
+        const dataUrl = exportSketch()
+        if (!dataUrl) return '导出失败：画布还没准备好'
+
+        const format = args.format === 'jpg' ? 'jpg' : 'png'
+        downloadDataUrl(dataUrl, `指尖绘迹-${Date.now()}.${format}`)
+        return '作品已导出'
+      }
+
+      case 'search_style': {
+        const query = String(args.style ?? '').trim() || lastUserText()
+        const k = Number(args.k) || 3
+
+        const res = await $fetch<SearchStyleResponse>('/api/search-style', {
+          method: 'POST',
+          body: { query, k },
+          timeout: 15000,
+        })
+
+        const results = res.results ?? []
+        store.setStyleResults(results)
+
+        const top = results[0]
+        return top
+          ? `检索到 ${results.length} 个风格，最匹配「${top.title}」（${top.score}）`
+          : `没有匹配到与「${query}」相关的风格`
+      }
+
+      case 'generate_image': {
+        const imageBase64 = exportSketch()
+        if (!imageBase64) return '生成失败：画布还没准备好'
+
+        const styleKey = String(args.styleKey ?? '').trim()
+        // LLM 给的 styleKey 常是它自己编的（比如 guofeng），优先用检索结果里能对上的那条，
+        // 它的 prompt 是知识库里真实的提示词，比让模型现编靠谱
+        const matched = store.styleResults.find(
+          item => item.id === styleKey || item.title === styleKey || item.prompt.includes(styleKey),
+        )
+
+        const res = await $fetch<GenerateResponse>('/api/generate', {
+          method: 'POST',
+          body: {
+            imageBase64,
+            styleKey: matched?.id || styleKey,
+            promptOverride: matched?.prompt,
+            strength: Number(args.strength) || 0.6,
+          },
+          // 服务端自己要轮询 30 秒，客户端给足余量
+          timeout: 45000,
+        })
+
+        store.setGeneratedImage(res.imageUrl)
+
+        return res.fallback
+          ? `生成服务没成功（${res.reason ?? '未知原因'}），先用占位图顶上`
+          : `生成完成，用时 ${res.costMs} ms`
+      }
+
+      case 'analyze_sketch':
+        return 'analyze_sketch 的多模态分支还没接，这次跳过'
+
+      default:
+        return `不认识的动作 ${action.tool}，跳过`
+    }
+  }
+
+  /**
+   * 串行执行一串动作。
+   * 必须串行：后一步依赖前一步的结果（先 search_style 拿到 prompt，再 generate_image）。
+   */
+  async function executeActions(actions: AgentAction[]) {
+    if (!actions.length) return
+
+    store.setExecuting(true)
+    const lines: string[] = []
+
+    try {
+      for (const action of actions) {
+        try {
+          lines.push(`· ${action.tool}：${await runAction(action)}`)
+        } catch (err) {
+          // 单步失败只记一条，继续跑后面的，不要把整串中断
+          console.error(`[agent] 执行 ${action.tool} 失败：`, err)
+          lines.push(`· ${action.tool}：执行失败（${(err as Error)?.message ?? '未知错误'}）`)
+        }
+      }
+
+      store.addMessage({ role: 'assistant', content: `动作执行结果：\n${lines.join('\n')}` })
+    } finally {
+      store.setExecuting(false)
+    }
+  }
+
+  /**
+   * 非流式入口：走 /api/agent，一次性拿到 reply + actions，然后串行执行 actions。
    * 结果全部写进 agentStore，界面直接读 store。
    */
   async function send(text: string) {
     const content = text.trim()
-    if (!content || store.loading || store.streaming) return
+    if (!content || store.loading || store.streaming || store.executing) return
 
     store.addMessage({ role: 'user', content })
     store.setLoading(true)
@@ -52,13 +219,21 @@ export function useAgent() {
       store.setLastActions(res.actions ?? [])
       store.setFallback(res.fallback === true)
 
-      // 真正执行动作是后面的任务，现在先看一眼模型返回了什么
       if (res.actions?.length) {
         console.log('[agent] 模型返回的动作：', res.actions, 'traceId:', res.traceId)
       }
+
+      // 模型答完了，接下来是执行动作：先摘掉 loading，再进 executing，
+      // 否则界面会一直显示"思考中"，用户不知道是在等模型还是在跑动作
+      store.setLoading(false)
+      await executeActions(res.actions ?? [])
     } catch (err) {
       // 网络失败、超时、非 200 都在这里兜住，不要把原始异常丢到界面上
-      store.addMessage({ role: 'assistant', content: describeAgentError(err) })
+      const data = (err as { data?: { error?: string, statusMessage?: string, message?: string } })?.data
+      store.addMessage({
+        role: 'assistant',
+        content: describeHttpError(httpStatus(err), data?.error || data?.statusMessage || data?.message),
+      })
       store.setReasoning([])
       store.setLastActions([])
       store.setFallback(true)
@@ -109,8 +284,13 @@ export function useAgent() {
         signal: current.signal,
       })
 
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status}`)
+      // 服务端的错误也以 SSE 帧返回（状态码照实给），所以只要响应体是 event-stream 就照常读流。
+      // 只有响应根本不是 SSE 时（进程崩了、反代返回了 HTML 错误页）才退回按状态码翻译。
+      const isStream = response.headers.get('content-type')?.includes('text/event-stream') === true
+
+      if (!response.body || (!response.ok && !isStream)) {
+        finishWithNotice(accumulated, describeHttpError(response.status, await readErrorDetail(response)))
+        return
       }
 
       const reader = response.body.getReader()
@@ -130,19 +310,30 @@ export function useAgent() {
         buffer = chunks.pop() ?? ''
 
         for (const chunk of chunks) {
-          const delta = parseEvent(chunk)
-          if (delta === null) continue
-          if (delta === DONE) return
+          const event = parseEvent(chunk)
+          if (!event) continue
 
-          accumulated += delta
+          if (event.type === 'error') {
+            // 上游的错误原文只写日志，界面给人话
+            console.error('[agent] 服务端返回错误：', event.message)
+            finishWithNotice(accumulated, describeStreamError(event.message))
+            return
+          }
+
+          if (event.type === 'done') return
+
+          accumulated += event.text
           store.updateLastAssistant(accumulated)
         }
       }
+
+      // 流结束了却一个字都没收到（比如连接被中途掐断），给个交代，别留个空气泡
+      if (!accumulated) finishWithNotice('', '没有收到内容，请重试。')
     } catch (err) {
       // 主动 abort 会抛 AbortError，这是正常操作，不当错误处理
       if (!isAbortError(err)) {
         console.error('[agent] 流式请求失败：', err)
-        store.updateLastAssistant(accumulated || '（连接中断，请重试）')
+        finishWithNotice(accumulated, '连接中断，请重试。')
       }
     } finally {
       // 只有自己还是「当前那次请求」时才收尾，避免把新请求的状态改掉
@@ -153,51 +344,84 @@ export function useAgent() {
     }
   }
 
-  return { send, chatStream, stop, buildContext }
+  return { send, chatStream, stop, runAction, executeActions, exportSketch, buildContext }
 }
 
-/** parseEvent 用它表示「这条消息说流结束了」 */
-const DONE = Symbol('done')
+/** 把 dataURL 存成文件（只在浏览器里调用） */
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = dataUrl
+  link.download = filename
+  link.click()
+}
 
 /**
  * 解析一条 SSE 消息。
- * @returns 文本增量；null 表示这条不用管；DONE 表示流已结束
+ * @returns 解析结果；null 表示这条不用管（空行、注释、半条 JSON）
  */
-function parseEvent(raw: string): string | typeof DONE | null {
+function parseEvent(raw: string): StreamEvent | null {
   const line = raw.split('\n').find(item => item.startsWith('data:'))
   if (!line) return null
 
   const payload = line.slice(5).trim()
   if (!payload) return null
-  if (payload === '[DONE]') return DONE
+  if (payload === '[DONE]') return { type: 'done' }
 
   try {
     const data = JSON.parse(payload) as { delta?: string, done?: boolean, error?: string }
-    if (data.error) {
-      console.error('[agent] 服务端返回错误：', data.error)
-      return DONE
-    }
-    if (data.done) return DONE
-    return typeof data.delta === 'string' ? data.delta : null
+    if (data.error) return { type: 'error', message: data.error }
+    if (data.done) return { type: 'done' }
+    if (typeof data.delta === 'string') return { type: 'delta', text: data.delta }
+    return null
   } catch {
     // 半条 JSON（理论上缓冲区已经挡住了，这里只是兜底），忽略掉
     return null
   }
 }
 
-function isAbortError(err: unknown) {
-  return (err as { name?: string })?.name === 'AbortError'
+/** 响应不是 SSE 时，尽量把它带的错误信息抠出来 */
+async function readErrorDetail(response: Response) {
+  try {
+    const data = await response.json() as { error?: string, statusMessage?: string, message?: string }
+    return data?.error || data?.statusMessage || data?.message || ''
+  } catch {
+    return ''
+  }
 }
 
-/** $fetch 抛出来的错误给用户看之前先翻译一下 */
-function describeAgentError(err: unknown) {
-  const status = (err as { statusCode?: number, status?: number })?.statusCode
-    ?? (err as { status?: number })?.status
+/** $fetch 抛出来的错误里取状态码 */
+function httpStatus(err: unknown) {
+  const e = err as { statusCode?: number, status?: number, response?: { status?: number } }
+  return e?.statusCode ?? e?.status ?? e?.response?.status
+}
+
+/**
+ * 按状态码翻译成人话。
+ * 能走到这里的都是「响应体不是 SSE」的情况：多半是框架层报的（JSON 体不合法、进程崩了、
+ * 反代返回了 HTML 错误页），那些 message 是英文技术文本，不适合直接给用户看，
+ * 所以只写日志，界面统一给中文提示。
+ */
+function describeHttpError(status: number | undefined, detail?: string) {
+  if (detail) console.warn('[agent] 上游错误详情：', detail)
 
   if (status === 400) return '这个请求不合法，换个说法再试试。'
-  if (status === 401) return 'AI 服务没有授权，检查一下 DEEPSEEK_API_KEY 配置。'
-  if (status === 429) return '今天的额度用完了，已切换本地模板。'
+  if (status === 401 || status === 403) return 'AI 服务没有授权，检查一下 DEEPSEEK_API_KEY 配置。'
+  if (status === 413) return '消息太长了，删掉几条再试。'
+  if (status === 429) return '今天的额度用完了，稍后再试。'
   if (status === 503) return '服务繁忙，已降级。'
 
   return 'AI 暂时不可用，已切换本地模板。'
+}
+
+/** 流式过程中从 data:{error} 帧里拿到的原因，翻译成人话 */
+function describeStreamError(message: string) {
+  if (message.includes('DEEPSEEK_API_KEY')) return '服务端还没配密钥，先把 frontend/.env 放好。'
+  if (/401|unauthor/i.test(message)) return 'AI 服务没有授权，检查一下 DEEPSEEK_API_KEY。'
+  if (/429|rate.?limit/i.test(message)) return '今天的额度用完了，稍后再试。'
+  if (/timeout|timed out|ETIMEDOUT/i.test(message)) return '上游超时了，重试一次试试。'
+  return '生成中断，请重试。'
+}
+
+function isAbortError(err: unknown) {
+  return (err as { name?: string })?.name === 'AbortError'
 }
