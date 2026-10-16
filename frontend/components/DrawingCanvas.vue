@@ -33,6 +33,7 @@
 <script setup lang="ts">
 const brush = useBrushStore()
 const gesture = useGestureStore()
+const agent = useAgentStore()
 
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 /** 【实验引导线，实验结束后删除】参照层，clear() 不会碰它 */
@@ -163,6 +164,9 @@ function toCanvasPoint(clientX: number, clientY: number) {
 function strokeSegment(from: { x: number; y: number }, to: { x: number; y: number }) {
   if (!ctx) return
 
+  // 画布上落墨了：/api/agent 的 context.hasSketch 靠这个标记
+  agent.setHasSketch(true)
+
   ctx.strokeStyle = brush.color
   ctx.lineWidth = brush.size
 
@@ -180,6 +184,9 @@ function startStroke(clientX: number, clientY: number) {
 
   drawing = true
   lastPoint = point
+
+  // 单击留下的这个点也算画布有内容
+  agent.setHasSketch(true)
 
   ctx.fillStyle = brush.color
   ctx.beginPath()
@@ -236,6 +243,9 @@ function clear() {
   drawing = false
   lastPoint = null
   lastGesturePoint = null
+
+  // 画布空了，告诉 AI 现在没有草图可参考
+  agent.setHasSketch(false)
 }
 
 defineExpose({ clear })

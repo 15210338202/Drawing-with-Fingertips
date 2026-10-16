@@ -1,6 +1,15 @@
 import type { HandLandmark } from './useHandTracking'
 
-/** 两个关键点之间的欧氏距离（只用 x、y：z 的抖动太大，不适合做判定） */
+/**
+ * 两个关键点之间的欧氏距离（只用 x、y：z 的抖动太大，不适合做判定）。
+ *
+ * TODO(第 4 周 · 性能优化)：MediaPipe 的 x 是按画面【宽】归一化的、y 是按画面【高】归一化的，
+ * 640×480 下横竖尺度差 4:3，所以这个距离是被拉伸过的 —— 同一个手势横着做和竖着做，
+ * 算出来的值最多差 33%，阈值因此带方向性。
+ * 修法：算距离前把 x 乘上宽高比（4/3）换算到等比空间。
+ * 本周不动的理由：一改，捏合的比例整体放大约 1.33 倍，0.35/0.45 这两个阈值等于变松，
+ * 现有手感会变、滑杆得重新标定，不值得打断 Agent 主线。
+ */
 function distance(a: { x: number, y: number }, b: { x: number, y: number }) {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
@@ -44,17 +53,17 @@ export function useGesture() {
   }
 
   /**
-   * 握拳清空：四指都蜷起来（指尖贴近手腕），且持续 fistHoldMs 毫秒才触发。
+   * 握拳计时：四指持续收拢 fistHoldMs 毫秒，才触发一次清空。
    *
-   * 为什么不含拇指（索引 4）：握拳时拇指是绕在四指**外侧**的，指尖停在指关节那一圈，
-   * 离手腕天生比其余四指远得多。如果把它也算进 every()，只要拇指不达标握拳就永远不成立。
-   * 而四指伸直时指尖到手腕约 2 倍掌长、蜷起来只剩 0.5 倍左右，区分度足够。
-   * 拇指的值仍然会写进调试读数，方便观察它到底差多少。
+   * 判定只用四指（不含拇指 4）：握拳时拇指绕在四指**外侧**，指尖停在指关节那一圈，
+   * 离手腕天生远得多，算进来会让握拳永远不成立（这就是之前握拳不清空的原因）。
+   * 四指伸直时指尖到手腕约 2 倍掌长、蜷起来只剩 0.5 倍左右，区分度足够。
+   * 拇指的值仍然写进调试读数，方便观察它差多少。
    *
-   * @param fingerRatio 四指中离手腕最远的那个的归一化距离
+   * @param isFist 四指是否已经蜷起来
    */
-  function updateFistClear(fingerRatio: number) {
-    if (fingerRatio >= store.fistThreshold) {
+  function updateFistClear(isFist: boolean) {
+    if (!isFist) {
       // 没攥住：重新武装
       fistSince = null
       fistConsumed = false
@@ -88,10 +97,6 @@ export function useGesture() {
     // 手掌尺寸用手腕(0)到中指根(9)的距离，不能写死固定值
     const palmSize = distance(landmarks[0], landmarks[9]) || 1
 
-    // 迟滞的两个阈值必须 enter < exit；滑杆被拉反了状态会反复横跳，这里兜一道
-    const enter = Math.min(store.pinchEnter, store.pinchExit)
-    const exit = Math.max(store.pinchEnter, store.pinchExit)
-
     const pinchRatio = distance(landmarks[4], landmarks[8]) / palmSize
 
     // 四指里离手腕最远的那根：握拳判定看它，它也最能说明“这个拳攥紧了没有”
@@ -103,6 +108,25 @@ export function useGesture() {
 
     // 读出来的数写进 store，Toolbar 实时显示，方便对着调滑杆
     store.setDebugRatios(pinchRatio, fingerRatio, thumbRatio)
+
+    const isFist = fingerRatio < store.fistThreshold
+
+    // 握拳的优先级高于捏合，而且必须放在捏合判定【前面】：
+    // 攥拳的过程中拇指和食指本来就会互相靠近，先走捏合判定的话会先进入 drawing 画出一小段，
+    // 一秒后清空时再一起抹掉 —— 看着就像 bug。所以只要四指收拢，立刻停笔且不再进入 drawing。
+    if (isFist) {
+      if (state.value === 'drawing') store.setState('idle')
+      pinchStreak = 0
+      updateFistClear(true)
+      return state.value
+    }
+
+    // 手张开了：握拳计时归零、重新武装
+    updateFistClear(false)
+
+    // 迟滞的两个阈值必须 enter < exit；滑杆被拉反了状态会反复横跳，这里兜一道
+    const enter = Math.min(store.pinchEnter, store.pinchExit)
+    const exit = Math.max(store.pinchEnter, store.pinchExit)
 
     // 已经在画的时候用宽松的退出阈值，否则用进入阈值 —— 这就是迟滞
     const threshold = state.value === 'drawing' ? exit : enter
@@ -119,8 +143,6 @@ export function useGesture() {
     if (state.value !== 'drawing' && pinchStreak >= Math.max(1, store.confirmFrames)) {
       store.setState('drawing')
     }
-
-    updateFistClear(fingerRatio)
 
     return state.value
   }

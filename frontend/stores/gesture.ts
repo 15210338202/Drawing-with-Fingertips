@@ -9,15 +9,15 @@ export const useGestureStore = defineStore('gesture', {
 
     // ===== 判定参数：Toolbar 的调试滑杆直接绑这几个，现场对着手调，调好了把默认值写回来 =====
     /** 捏合进入阈值：拇指尖到食指尖的距离 ÷ 手掌尺寸，小于它算捏合 */
-    pinchEnter: 0.35,
+    pinchEnter: 0.25,
     /** 捏合退出阈值：大于它算松开。必须比 pinchEnter 大，两者之差就是迟滞 */
-    pinchExit: 0.45,
+    pinchExit: 0.35,
     /** 连续多少帧判定为捏合，才真正进入 drawing */
     confirmFrames: 3,
     /** 握拳要持续多少毫秒才触发清空 */
     fistHoldMs: 1000,
     /** 握拳判定：四指指尖到手腕的归一化距离上限 */
-    fistThreshold: 0.6,
+    fistThreshold: 0.85,
     /** 握拳判定：五指尖中要检查的四个（不含拇指，拇指握拳时绕在外侧，见 useGesture.ts 说明） */
     fistFingers: [8, 12, 16, 20],
 
