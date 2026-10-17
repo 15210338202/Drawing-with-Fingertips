@@ -111,8 +111,16 @@ data: [DONE]
 
 ### 响应
 \`\`\`json
-{ "imageUrl": "https://...", "costMs": 8200, "provider": "tongyi" }
+{ "imageUrl": "data:image/jpeg;base64,...", "costMs": 8200, "provider": "cloudflare" }
 \`\`\`
+
+失败时返回占位图，并把原因带上（`imageUrl` 是可显示的 SVG Data URL）：
+\`\`\`json
+{ "imageUrl": "data:image/svg+xml;utf8,...", "costMs": 40000, "provider": "cloudflare", "fallback": true, "reason": "..." }
+\`\`\`
+
+模型为 Cloudflare Workers AI 的图生图 `@cf/black-forest-labs/flux-2-klein-4b`（免费额度内可用），
+换模型设 `CLOUDFLARE_IMAGE_MODEL` 环境变量即可。
 
 ---
 
