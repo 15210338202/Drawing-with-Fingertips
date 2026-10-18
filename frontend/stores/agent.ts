@@ -15,7 +15,12 @@ export interface AgentMessage {
 export interface StyleResult {
   id: string
   title: string
+  /** 纯画风描述（= styleModifiers，留作展示与 promptOverride） */
   prompt: string
+  /** 纯画风/材质，不含具体物体 */
+  styleModifiers: string
+  /** 内容兜底，仅文生图模型用 */
+  contentHints: string
   source: string
   score: number
 }

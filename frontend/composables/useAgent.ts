@@ -137,7 +137,7 @@ export function useAgent() {
         // LLM 给的 styleKey 常是它自己编的（比如 guofeng），优先用检索结果里能对上的那条，
         // 它的 prompt 是知识库里真实的提示词，比让模型现编靠谱
         const matched = store.styleResults.find(
-          item => item.id === styleKey || item.title === styleKey || item.prompt.includes(styleKey),
+          item => item.id === styleKey || item.title === styleKey || item.styleModifiers.includes(styleKey),
         )
 
         const res = await $fetch<GenerateResponse>('/api/generate', {
@@ -145,7 +145,7 @@ export function useAgent() {
           body: {
             imageBase64,
             styleKey: matched?.id || styleKey,
-            promptOverride: matched?.prompt,
+            promptOverride: matched?.styleModifiers,
             strength: Number(args.strength) || 0.6,
           },
           // 服务端自己要轮询 30 秒，客户端给足余量

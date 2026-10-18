@@ -22,6 +22,12 @@
         class="absolute inset-0 w-full h-full pointer-events-none"
       />
 
+      <!-- 性能 HUD：只在 ?perf=1 时出现，暂留作调参用，验收完再决定留还是删 -->
+      <pre
+        v-if="showPerf"
+        class="pointer-events-none absolute right-2 top-2 z-10 rounded bg-black/70 px-2 py-1 font-mono text-[11px] leading-4 text-white whitespace-pre"
+      >{{ perfText }}</pre>
+
       <p
         v-if="errorMessage"
         class="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-red-600 bg-gray-200"
@@ -64,17 +70,19 @@
 </template>
 
 <script setup lang="ts">
+import { clamp01 } from '~/utils/cursor'
+
 const gesture = useGestureStore()
 
 /** 手部关键点识别：推理跑在 Worker 里，结果异步写进 landmarks */
 const {
   landmarks,
   ready,
-  busy,
   error: trackingError,
   load,
   detect,
   close,
+  perfSnapshot,
 } = useHandTracking()
 
 /** 滑动平均：x、y 各自独立缓冲 */
@@ -106,6 +114,48 @@ const captureError = ref('')
 /** 模板里只显示一条错误，模型错误优先 */
 const statusError = computed(() => trackingError.value || captureError.value)
 
+// ===== 性能 HUD（?perf=1 才启用）=====
+// 采样本身在 useHandTracking 里跑，这里只负责每 250ms 把快照画到右上角。
+// 断笔次数：绘制中手被跟丢 → 状态回 idle 且这一帧没有关键点，算一次断笔。
+const showPerf = typeof location !== 'undefined'
+  && new URLSearchParams(location.search).has('perf')
+
+const perfText = ref(showPerf ? '采样中…' : '')
+const brokenStrokes = ref(0)
+
+if (showPerf) {
+  watch(gestureState, (now, prev) => {
+    if (prev === 'drawing' && now === 'idle' && !landmarks.value) brokenStrokes.value += 1
+  })
+}
+
+/** 拼成两行文本：上面是吞吐，下面是丢帧与断笔 */
+function formatPerf() {
+  const stats = perfSnapshot()
+  const dropPercent = (stats.dropRate * 100).toFixed(0)
+
+  return [
+    `处理FPS: ${stats.fps.toFixed(1)}  |  p95间隔: ${stats.p95Interval.toFixed(0)}ms  |  最大: ${stats.maxInterval.toFixed(0)}ms`,
+    `丢帧: ${dropPercent}%  |  断笔: ${brokenStrokes.value}  |  抓帧: ${stats.captures}  处理: ${stats.done}`,
+  ].join('\n')
+}
+
+let perfRafId = 0
+let lastPerfPaint = 0
+
+/** 用 rAF 而不是 setInterval：切到后台时浏览器会自动停掉，不会白算 */
+function paintPerf(now: number) {
+  perfRafId = requestAnimationFrame(paintPerf)
+  if (now - lastPerfPaint < 250) return
+  lastPerfPaint = now
+  perfText.value = formatPerf()
+}
+
+onMounted(() => {
+  if (!showPerf) return
+  perfRafId = requestAnimationFrame(paintPerf)
+})
+
 /** requestAnimationFrame 句柄，关摄像头时必须 cancel，否则循环会一直跑 */
 let rafId = 0
 /** 上一帧的 video.currentTime，避免对同一帧重复推理 */
@@ -114,11 +164,18 @@ let lastVideoTime = -1
 let lastDetectTs = 0
 
 /**
- * 抓帧和推理的帧率上限。
+ * 抓帧的帧率上限（推理吞吐由 Worker 决定，这里只限制「最多多久抓一帧」）。
  * 不按“每 2 帧处理一次”来卡：rAF 是跟着显示器刷新的（通常 60Hz），摄像头可能是 30 也可能是 60fps，
  * 按时间间隔卡才是稳定的 30 FPS。
  */
 const MIN_FRAME_INTERVAL = 1000 / 30
+
+/**
+ * 送去推理的画面最大宽度。
+ * 480 宽已经远超 MediaPipe 的模型输入，但比 640 少四成像素，
+ * 解码、结构化传输、模型预处理的耗时都会跟着降；不做放大，避免画幅小时白费算力。
+ */
+const DETECT_MAX_WIDTH = 480
 
 /** 打开摄像头：640×480 前置，不采集音频（分辨率不要调高，否则 MediaPipe 推理会慢） */
 async function startCamera() {
@@ -183,35 +240,45 @@ async function startTracking() {
 }
 
 /**
- * 每一帧：过三道闸 → 把当前帧抓成 ImageBitmap → 转移给 Worker。
+ * 每一帧：过两道闸 → 把当前帧抓成 ImageBitmap → 交给 useHandTracking。
+ *
+ * 「推理中丢帧」那道闸已经去掉：现在由 detect() 的单槽 latest-wins 接住，
+ * 抓到的帧要么被派发、要么覆盖待发槽里的旧帧，不会被直接扔掉。
  * 结果不在这一帧回来，等 landmarks 变化后由下面的 watch 处理。
  */
 function captureFrame() {
   const video = videoEl.value
   if (!video || !isActive.value || !ready.value) return
 
-  // 闸 1：上一条还在推理，先不发新的，否则 Worker 队列会越积越多、画面越拖越晚
-  if (busy.value) return
-
-  // 闸 2：video.currentTime 没变说明还是同一帧
+  // 闸 1：video.currentTime 没变说明还是同一帧
   if (video.currentTime === lastVideoTime) return
 
-  // 闸 3：帧率压到 30 FPS 以内
+  // 闸 2：抓帧帧率压到 30 FPS 以内
   const now = performance.now()
   if (now - lastDetectTs < MIN_FRAME_INTERVAL) return
 
   lastVideoTime = video.currentTime
   lastDetectTs = now
 
+  // 尺寸还没就绪（刚 attach 好 srcObject 的那一两帧）就先跳过，
+  // 否则下面算出来的 resizeWidth 会退化成 1，白送一张 1×1 的图给模型
+  if (!video.videoWidth || !video.videoHeight) return
+
+  // 降分辨率再送推理：MediaPipe 内部本来就要缩到模型输入尺寸（224/256），
+  // 640×480 原样送进去纯属浪费解码与传输。只在画幅更大时缩，不做放大。
+  const scale = Math.min(1, DETECT_MAX_WIDTH / video.videoWidth)
+  const resizeWidth = Math.max(1, Math.round(video.videoWidth * scale))
+  const resizeHeight = Math.max(1, Math.round(video.videoHeight * scale))
+
   // Worker 里没有 DOM，拿不到 <video>，所以先抓成一帧位图再转移过去
-  createImageBitmap(video)
+  createImageBitmap(video, { resizeWidth, resizeHeight, resizeQuality: 'medium' })
     .then((bitmap) => {
       if (!isActive.value) {
         // 抓图这段时间里摄像头被关了，这张图没人接手，自己关掉
         bitmap.close()
         return
       }
-      // detect() 内部会把 bitmap 转移给 Worker，之后由 Worker close
+      // detect() 之后可能立刻转移给 Worker，也可能先进待发槽，close 由那边统一负责
       detect(bitmap, performance.now())
     })
     .catch((err) => {
@@ -263,10 +330,19 @@ const SAMPLE_INTERVAL = 1000 / 30
 /**
  * 食指尖的归一化坐标写进 gesture store，给 DrawingCanvas 用。
  * 存的是「镜像翻转 + 平滑后」的 0–1 坐标，画布那边再乘自己的 width/height。
- * 只有捏合（drawing）状态才写值，其余情况写 null 让画布断开笔画。
+ *
+ * 写两个位置：
+ * - hoverPoint：只要有手就写（不依赖捏合），给悬停准星跟随用；用未平滑的原始坐标，
+ *   视觉平滑交给画布那边的 Lerp（那边是 60FPS 渲染，比在这里按 30FPS 平滑更跟手）；
+ * - lastPoint：只有 drawing 状态才写，松手/丢手写 null 让画布断开笔画。
  */
 function syncIndexFingertip(points: { x: number, y: number }[] | null) {
   const indexTip = points?.[8]
+
+  // 悬停坐标：镜像 + 夹到 0–1（夹取只影响显示，不改落笔坐标，避免准星飘出画布）
+  gesture.setHoverPoint(indexTip
+    ? { x: clamp01(1 - indexTip.x), y: clamp01(indexTip.y) }
+    : null)
 
   // 待机、手丢了、松开手指，都等于抬笔：
   // 必须写 null 断开笔画，否则画布会把上一笔的末尾和下一笔的起点连成一条长线。
@@ -339,6 +415,8 @@ function releaseStream() {
   resetGesture()
   resetSmoothing()
   gesture.setLastPoint(null)
+  // 准星也要跟着消失，否则会定格在画面里最后一个位置
+  gesture.setHoverPoint(null)
 }
 
 /** 把 getUserMedia 的异常翻译成用户能看懂的中文提示 */
@@ -366,6 +444,10 @@ function describeCameraError(err: unknown): string {
 
 // 切页面/组件卸载时一定要关流，否则摄像头指示灯会一直亮着
 onBeforeUnmount(() => {
+  if (perfRafId) {
+    cancelAnimationFrame(perfRafId)
+    perfRafId = 0
+  }
   stopCamera()
   // Worker 占着 WASM 和显存，整个组件销毁时一起释放
   close()

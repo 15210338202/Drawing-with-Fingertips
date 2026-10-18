@@ -33,11 +33,30 @@ const UPSTREAM_TIMEOUT = 40000
 /** 扩散步数。klein 是蒸馏模型，4 步就够；调大质量略好但更慢 */
 const STEPS = 4
 
-/** 没传 promptOverride、styleKey 又认不出来时的默认提示词 */
-const DEFAULT_PROMPT = 'artistic illustration, soft color washes, expressive brush strokes, refined composition, high quality'
+/** 提示词引导强度。klein 沿用了 FLUX.2 的 guidance 语义，5 比默认更「听话」于文字描述 */
+const GUIDANCE = 5
 
-/** 图生图时追加一句「照着草图来」，否则模型会当纯文生图、把草图的构图丢掉 */
-const SKETCH_CONDITION = 'Repaint the attached sketch in this style, keeping its composition and main subject'
+/** 没传 promptOverride、styleKey 又认不出来时的默认画风（只描述画风，不提具体物体） */
+const DEFAULT_STYLE = 'soft artistic illustration, expressive brushwork, balanced composition, high quality'
+
+/**
+ * 图生图的提示词。
+ *
+ * 措辞是实验调出来的，三段各有作用：
+ * 1. 第一句把「画什么」交给草图（主体、姿态、布局），模型只负责「怎么画」；
+ * 2. 第二句要求自然渲染 —— 早期写「Preserve the linework layout」会让模型把粗线条照描，
+ *    生成图里留着生硬的草稿描边；
+ * 3. 第三句堵住「模型自己加东西」：旧知识库的 prompt 里带着 "misty mountains" 这类内容词，
+ *    实测会让模型在猫背后画出一片山。
+ */
+const SKETCH_PROMPT = (styleModifiers: string) =>
+  `Recreate the subject, pose and layout of the reference sketch as ${styleModifiers}. `
+  + 'Keep the same proportions and object placement as the drawing, render them naturally, '
+  + 'do not leave visible pencil or sketch lines, and do not add any object that is not in the drawing.'
+
+/** 文生图模型（拿不到草图）时，用内容兜底 + 画风拼一个普通提示词 */
+const TEXT_PROMPT = (styleModifiers: string, contentHints: string) =>
+  contentHints ? `${contentHints}, ${styleModifiers}` : styleModifiers
 
 /** 兜底图里的提示文案截断长度，避免把上游一长串错误原样糊到页面上 */
 const REASON_MAX_LENGTH = 200
@@ -55,7 +74,10 @@ interface StyleEntry {
   id: string
   title: string
   tags: string[]
-  prompt: string
+  /** 纯画风/材质描述，不含具体物体 */
+  styleModifiers: string
+  /** 内容兜底，只有文生图模型用得到 */
+  contentHints: string
   negative: string
   source: string
   styleKey: string
@@ -103,8 +125,9 @@ export default defineEventHandler(async (event): Promise<GenerateResponse> => {
   }
 
   const style = resolveStyle(styleKey)
-  // promptOverride 优先；其次走风格库里的真提示词；都没有就用默认提示词（不再 400，保证演示不中断）
-  const stylePrompt = promptOverride || style?.prompt || DEFAULT_PROMPT
+  // 画风来源优先级：promptOverride（LLM/前端显式指定）→ 知识库的 styleModifiers → 默认画风。
+  // 注意这里只取「画风」：画什么是草图决定的，内容兜底只在文生图分支用。
+  const styleModifiers = promptOverride || style?.styleModifiers || DEFAULT_STYLE
 
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
   const apiToken = process.env.CLOUDFLARE_API_TOKEN
@@ -122,8 +145,11 @@ export default defineEventHandler(async (event): Promise<GenerateResponse> => {
 
   const model = process.env.CLOUDFLARE_IMAGE_MODEL?.trim() || DEFAULT_MODEL
   const textOnly = TEXT_ONLY_MODELS.has(model)
-  // 文生图模型带上草图的构图提示也没用，反而可能误导，所以直接不加
-  const prompt = textOnly ? stylePrompt : `${stylePrompt}. ${SKETCH_CONDITION}`
+  // 图生图：构图/形状/主体全交给草图，prompt 只描述画风；
+  // 文生图：没有草图可依，才把 contentHints 拼进去，否则画面会空
+  const prompt = textOnly
+    ? TEXT_PROMPT(styleModifiers, style?.contentHints ?? '')
+    : SKETCH_PROMPT(styleModifiers)
 
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`
   const headers: Record<string, string> = { Authorization: `Bearer ${apiToken}`, Accept: 'image/*' }
@@ -143,6 +169,7 @@ export default defineEventHandler(async (event): Promise<GenerateResponse> => {
     const form = new FormData()
     form.append('prompt', prompt)
     form.append('steps', String(STEPS))
+    form.append('guidance', String(GUIDANCE))
     form.append('input_image_0', new Blob([bytes], { type: sniffDataUrlMime(imageBase64) }), 'sketch.png')
     requestBody = form
   }

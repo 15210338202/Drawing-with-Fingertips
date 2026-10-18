@@ -4,8 +4,15 @@ import stylesData from '../data/styles.json'
 interface StyleEntry {
   id: string
   title: string
+  /** 大类（流派 / 地域）：只用于界面分组，**不参与检索打分** */
+  category: string
   tags: string[]
-  prompt: string
+  /** 题材标签：前端筛选用，并以 0.35 的低权重参与检索兜底（让「我想画动物」也能召回画风） */
+  themes: string[]
+  /** 纯画风/材质描述，不含具体物体 —— 画什么由用户草图决定 */
+  styleModifiers: string
+  /** 内容兜底：只有拿不到草图（文生图模型）时才拼进 prompt */
+  contentHints: string
   negative: string
   source: string
   styleKey: string
@@ -16,6 +23,9 @@ interface StyleEntry {
  * 也就不会出现「.output 里找不到 server/data/styles.json」这种部署问题。
  */
 const STYLES = stylesData as StyleEntry[]
+
+/** 题材词命中的权重：低于任何真实风格词命中（0.6/1.0），只做兜底召回 */
+const THEME_WEIGHT = 0.35
 
 const DEFAULT_K = 3
 const MAX_K = 5
@@ -42,6 +52,8 @@ const SYNONYM_GROUPS: string[][] = [
   ['水彩', '淡彩', 'watercolor', 'shuicai'],
   ['像素', '复古', '怀旧', 'pixel', 'retro'],
   ['油画', '厚涂', '古典', 'oil painting', 'impasto', 'youhua'],
+  // 西方古典一脉：用户常说「文艺复兴」「巴洛克」「写实」，这些词现有组里都没有
+  ['文艺复兴', '巴洛克', '新古典', '写实', 'realism', 'renaissance', 'baroque'],
   ['极简', '线稿', '简笔', '黑白', 'minimal', 'line art'],
   ['二次元', '动漫', '日系', 'anime', 'dongman'],
 ]
@@ -73,7 +85,13 @@ export default defineEventHandler(async (event) => {
     .map(({ style, score }) => ({
       id: style.id,
       title: style.title,
-      prompt: style.prompt,
+      // 这两个字段透出来是给前端做分组与题材筛选的；themes 另有 0.35 的低权重兜底命中
+      category: style.category,
+      themes: style.themes,
+      // prompt 保留给旧消费方（界面展示、promptOverride），值就是纯画风描述
+      prompt: style.styleModifiers,
+      styleModifiers: style.styleModifiers,
+      contentHints: style.contentHints,
       // 响应里保留 source，前端要显示"本次参考了：水墨国风（来源：自建）"
       source: style.source,
       score,
@@ -112,7 +130,7 @@ function extractConcepts(text: string): string[][] {
  * 只是同义词表里顺带带的词（比如同一组里的"霓虹"）打六折。
  * 不区分的话，"赛博朋克"会让只带"霓虹"标签的川渝烟火和真正的赛博霓虹并列第一。
  */
-function matchQuality(concept: string[], text: string, tags: string[]) {
+function matchQuality(concept: string[], text: string, tags: string[], themes: string[]) {
   let best = 0
 
   for (const word of concept) {
@@ -125,6 +143,16 @@ function matchQuality(concept: string[], text: string, tags: string[]) {
 
       if (hit > 0) best = Math.max(best, hit * (saidByUser ? 1 : 0.6))
     }
+
+    /*
+     * 题材兜底：用户说「我想画动物」时，风格词一个都不命中，但 themes 里有「动物」。
+     * 用低权重（0.35）参与，保证它能召回一批画风，又永远不会压过真正的风格词。
+     */
+    for (const theme of themes) {
+      if (theme === word || theme.includes(word) || word.includes(theme)) {
+        best = Math.max(best, THEME_WEIGHT * (saidByUser ? 1 : 0.6))
+      }
+    }
   }
 
   return best
@@ -135,8 +163,9 @@ function scoreStyle(style: StyleEntry, text: string, concepts: string[][]) {
   if (!concepts.length) return 0
 
   const tags = style.tags.map(tag => tag.toLowerCase())
+  const themes = (style.themes ?? []).map(t => t.toLowerCase())
 
-  const total = concepts.reduce((sum, concept) => sum + matchQuality(concept, text, tags), 0)
+  const total = concepts.reduce((sum, concept) => sum + matchQuality(concept, text, tags, themes), 0)
   let score = total / concepts.length
 
   const title = style.title.toLowerCase()

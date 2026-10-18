@@ -2,7 +2,7 @@
   <div class="border rounded p-4 bg-white">
     <h2 class="font-semibold">画布区</h2>
 
-    <!-- 引导层要和画布像素级对齐，所以两层必须叠在同一个盒子里 -->
+    <!-- 生成结果浮层要和画布像素级对齐，所以叠在同一个盒子里 -->
     <div class="relative mt-2 w-[800px] max-w-full">
       <canvas
         ref="canvasEl"
@@ -19,12 +19,16 @@
         @touchcancel.prevent="onPointerUp"
       />
 
-      <!-- 【实验引导线，实验结束后删除】只当采集参照，pointer-events-none 不挡鼠标画线 -->
-      <canvas
-        ref="guideEl"
-        width="800"
-        height="600"
-        class="absolute inset-0 w-full h-full pointer-events-none opacity-20"
+      <!-- 悬停准星：手在哪光标在哪，捏合时收成实心小点。
+           pointer-events-none 不能少，否则它会吃掉鼠标事件、画不了线；
+           mix-blend-difference 让白点在白底上自动反成黑点，深色生成图上变白，任何背景都看得见。
+           位置由 rAF 直接写 style（见 stepCursor），不走响应式，避免每帧触发 patch。 -->
+      <div
+        ref="cursorEl"
+        v-show="cursorVisible"
+        class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full mix-blend-difference"
+        :class="cursorDrawing ? 'h-3 w-3 bg-white' : 'h-8 w-8 border-2 border-white'"
+        aria-hidden="true"
       />
 
       <!-- 生成结果：先盖在上面给用户看，点「贴回画布」才真正画进去 -->
@@ -61,13 +65,63 @@
 </template>
 
 <script setup lang="ts">
+import { lerp, toPercent } from '~/utils/cursor'
+
 const brush = useBrushStore()
 const gesture = useGestureStore()
 const agent = useAgentStore()
 
 const canvasEl = ref<HTMLCanvasElement | null>(null)
-/** 【实验引导线，实验结束后删除】参照层，clear() 不会碰它 */
-const guideEl = ref<HTMLCanvasElement | null>(null)
+
+/** 悬停准星的 DOM 元素与显示状态 */
+const cursorEl = ref<HTMLDivElement | null>(null)
+const cursorVisible = ref(false)
+/** 捏合时准星收成实心小点，其余时间是大空心圈 */
+const cursorDrawing = computed(() => gesture.state === 'drawing')
+
+/** 视觉插值系数：0.35 在 60FPS 下 3 帧到 72%、6 帧到 92%，跟手又不抖 */
+const CURSOR_LERP = 0.35
+
+/** 平滑后的归一化位置：只在 rAF 里读写，不需要响应式 */
+const cursorPos = { x: 0.5, y: 0.5 }
+let cursorRafId = 0
+
+/**
+ * 每帧把准星挪向手的位置。
+ *
+ * 直接写 el.style 而不是绑 :style —— 准星是每帧都在动的东西，
+ * 走响应式会让 Vue 每帧 patch 一次，得不偿失。
+ * 真正需要响应式的只有两个低频状态：要不要显示、是不是在画。
+ */
+function stepCursor() {
+  cursorRafId = requestAnimationFrame(stepCursor)
+
+  const el = cursorEl.value
+  if (!el) return
+
+  const target = gesture.hoverPoint
+
+  // 手不在画面里：隐藏。下次出现时先对齐再显示，避免从旧位置滑过来
+  if (!target) {
+    if (cursorVisible.value) cursorVisible.value = false
+    return
+  }
+
+  if (!cursorVisible.value) {
+    cursorPos.x = target.x
+    cursorPos.y = target.y
+    cursorVisible.value = true
+  }
+  else {
+    cursorPos.x = lerp(cursorPos.x, target.x, CURSOR_LERP)
+    cursorPos.y = lerp(cursorPos.y, target.y, CURSOR_LERP)
+  }
+
+  // 百分比定位：画布是等比缩放到容器宽度的，百分比能自动跟上缩放，
+  // 不用量像素、也不用监听 resize
+  el.style.left = toPercent(cursorPos.x)
+  el.style.top = toPercent(cursorPos.y)
+}
 
 /** 贴回画布时的报错提示（比如生成图有跨域限制，画不进 canvas） */
 const pasteError = ref('')
@@ -86,54 +140,155 @@ onMounted(() => {
   // 必须放在下面那个提前 return 之前，否则 canvas 没就绪时桥就断了。
   agent.setSketchExporter(exportSketch)
 
+  // 准星的跟随循环独立于画布初始化：canvas 上下文拿不到也要能显示光标
+  cursorRafId = requestAnimationFrame(stepCursor)
+
   ctx = canvasEl.value?.getContext('2d') ?? null
   if (!ctx) return
 
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-
-  drawGuide()
 })
 
 onBeforeUnmount(() => {
   agent.setSketchExporter(null)
+
+  if (cursorRafId) {
+    cancelAnimationFrame(cursorRafId)
+    cursorRafId = 0
+  }
 })
 
-/**
- * 导出草图的放大目标高度。
- * 图像 API 对输入尺寸有下限（高 ≥ 512），导出时统一放大到这个高度更稳妥。
- */
-const EXPORT_TARGET_HEIGHT = 768
+/** 送模型的草图长边上限：klein 的输入按 512 处理，再大也会被它缩，白费带宽 */
+const EXPORT_MAX_SIZE = 512
+
+/** 源画布上 alpha 高于它的像素才算笔迹（滤掉抗锯齿边缘那圈近乎透明的像素） */
+const INK_ALPHA_THRESHOLD = 16
 
 /**
  * 导出当前草图（PNG dataURL），供 /api/generate 使用。
  *
- * 三个要点：
- * 1. 新建临时 canvas 先铺白底再画上去 —— 画布本身是透明的，直接 toDataURL 出来的 PNG
- *    透明区在图像 API 那边会变成黑色。
- * 2. 等比放大到高度 EXPORT_TARGET_HEIGHT：画布是 800×600，放大后是 1024×768，
- *    max(1, …) 保证只在高度不足时才放大，原图本来就大就不动它，避免无谓重采样。
- * 3. 引导层是独立的 canvas，不会被导出。
+ * 目的只有一个：让模型「看得懂」。早先是把 800×600 画布等比放大到 1024×768 直接送过去，
+ * 白边占了大半、线只有 2px 还带抗锯齿灰阶，模型基本把它当噪声，只能靠 prompt 自由发挥，
+ * 于是生成结果跟草图没关系。现在分四步处理：
+ *
+ * 1. 扫像素求笔迹包围盒 —— 项目没有保存 stroke 点集（画布是纯栅格，橡皮擦也因此没做），
+ *    所以直接读 alpha，比维护一份点集更省事也更准；
+ * 2. 外扩 8%，避免线条贴边被模型当成「被裁断的图形」；
+ * 3. 等比缩到长边 ≤ 512，让线稿撑满画面；
+ * 4. 形态学膨胀 + 二值化成纯黑白：把 2px 细线变成模型认得出的粗线稿，并去掉灰阶。
+ *
+ * 注意坐标系：画布的 width/height 属性就是 800×600，绘图坐标也按它算，
+ * 没有 devicePixelRatio 缩放，所以包围盒直接用画布像素坐标，不需要换算。
  */
 function exportSketch() {
   const source = canvasEl.value
   if (!source) return null
 
-  const scale = Math.max(1, EXPORT_TARGET_HEIGHT / source.height)
+  // 没有笔迹（或像素读不出来）时退回整块画布：导出动作依赖「总能拿到一张图」
+  const bbox = findInkBounds(source) ?? { x: 0, y: 0, w: source.width, h: source.height }
+
+  // 外扩 8%，并限制在画布内
+  const pad = Math.round(Math.max(bbox.w, bbox.h) * 0.08)
+  const sx = Math.max(0, bbox.x - pad)
+  const sy = Math.max(0, bbox.y - pad)
+  const sw = Math.min(source.width - sx, bbox.w + pad * 2)
+  const sh = Math.min(source.height - sy, bbox.h + pad * 2)
+
+  // 等比缩放到长边 512：小图放大、大图缩小，两个方向都是为了「让线撑满」
+  const scale = Math.min(EXPORT_MAX_SIZE / sw, EXPORT_MAX_SIZE / sh)
+  const tw = Math.min(EXPORT_MAX_SIZE, Math.max(32, Math.round(sw * scale)))
+  const th = Math.min(EXPORT_MAX_SIZE, Math.max(32, Math.round(sh * scale)))
 
   const out = document.createElement('canvas')
-  out.width = Math.round(source.width * scale)
-  out.height = Math.round(source.height * scale)
+  out.width = tw
+  out.height = th
 
   const outCtx = out.getContext('2d')
   if (!outCtx) return null
 
+  // 白底：透明区送到图像 API 那边会变黑，先铺掉
   outCtx.fillStyle = '#ffffff'
-  outCtx.fillRect(0, 0, out.width, out.height)
-  // 直接给目标尺寸，让浏览器一次完成缩放，不要分两步画
-  outCtx.drawImage(source, 0, 0, out.width, out.height)
+  outCtx.fillRect(0, 0, tw, th)
+
+  // 形态学膨胀：先画一次本体，再在 R 圈、每圈 8 个方向各画一次。
+  // 用「多次偏移重绘」而不是遍历像素做卷积，是因为这条路径走的是合成器，比 JS 逐像素快得多。
+  outCtx.drawImage(source, sx, sy, sw, sh, 0, 0, tw, th)
+
+  // 半径固定 1。实测半径 2~3 会让线变得很粗，模型会「照着粗线条描」，
+  // 生成图里留着生硬的描边；半径 1 足够让线连续，又把画面让给风格化渲染。
+  const radius = 1
+  const dirs = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+  ]
+
+  for (let r = 1; r <= radius; r++) {
+    for (const [dx, dy] of dirs) {
+      outCtx.drawImage(source, sx, sy, sw, sh, dx * r, dy * r, tw, th)
+    }
+  }
+
+  // 二值化：抗锯齿的灰阶会让模型难以判断「线到底在哪」
+  const image = outCtx.getImageData(0, 0, tw, th)
+  binarizeStrokes(image.data)
+  outCtx.putImageData(image, 0, 0)
 
   return out.toDataURL('image/png')
+}
+
+/**
+ * 扫一遍画布像素，求笔迹（alpha 足够高）的包围盒。
+ * 读不出像素（跨域图片污染画布）或画布为空时返回 null。
+ */
+function findInkBounds(source: HTMLCanvasElement) {
+  const context = source.getContext('2d')
+  if (!context) return null
+
+  let pixels: Uint8ClampedArray
+  try {
+    pixels = context.getImageData(0, 0, source.width, source.height).data
+  }
+  catch {
+    // 被污染的画布读像素会抛 SecurityError，别让它把整个导出搞挂
+    return null
+  }
+
+  let minX = source.width
+  let minY = source.height
+  let maxX = -1
+  let maxY = -1
+
+  for (let y = 0; y < source.height; y++) {
+    const rowStart = y * source.width
+    for (let x = 0; x < source.width; x++) {
+      if (pixels[(rowStart + x) * 4 + 3] > INK_ALPHA_THRESHOLD) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+
+  // 一像素笔迹都没有
+  if (maxX < minX || maxY < minY) return null
+
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
+/** 纯黑 / 纯白：只要有颜色就压成黑，保证模型看到的是线稿而不是带灰阶的照片 */
+function binarizeStrokes(pixels: Uint8ClampedArray) {
+  for (let i = 0; i < pixels.length; i += 4) {
+    const isInk = pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240
+    const value = isInk ? 0 : 255
+
+    pixels[i] = value
+    pixels[i + 1] = value
+    pixels[i + 2] = value
+    pixels[i + 3] = 255
+  }
 }
 
 /** 关掉生成结果浮层，画布保持原样 */
@@ -202,58 +357,6 @@ async function toDataUrl(url: string) {
     reader.onerror = () => reject(new Error('图片转 dataURL 失败'))
     reader.readAsDataURL(blob)
   })
-}
-
-/**
- * 【实验引导线，实验结束后删除】
- * 每次采一组前只留一条：把另外两条注释掉，手沿着留下的那条画。
- * 坐标用的是画布内部坐标系（800×600），和真实笔迹同一个参考系。
- */
-function drawGuide() {
-  const guide = guideEl.value?.getContext('2d')
-  if (!guide) return
-
-  /**
-   * 三条引导线共用的样式。
-   * 抽成函数是为了切换图形时不用手动搬样式——否则取消注释圆的时候，
-   * 画笔会还是上一条线的 #ccc / lineWidth 3，画出来又细又浅。
-   */
-  const baseStyle = () => {
-    guide.strokeStyle = '#aaa'   // 浅灰，不抢视线
-    guide.lineWidth = 8          // 从 3 加粗到 8
-    guide.lineCap = 'round'
-  }
-
-  // ===== 每次采一组前只留一条：把不用的那两条注释掉 =====
-
-  // 1. 水平线：y = 300
-  baseStyle()
-
-  // 主线：x 从 120 到 680，占画布宽的 70%
-  guide.beginPath()
-  guide.moveTo(120, 300)
-  guide.lineTo(680, 300)
-  guide.stroke()
-
-  // 起笔区：左端一个小圆，提示从这里开始
-  guide.fillStyle = '#ccc'
-  guide.beginPath()
-  guide.arc(120, 300, 20, 0, Math.PI * 2)
-  guide.fill()
-
-  // 终点区：右端一个方框，线正好落在它中心
-  guide.strokeStyle = '#ccc'
-  guide.lineWidth = 3
-  guide.strokeRect(660, 280, 40, 40)
-
-  // 2. 圆：圆心 (400,300)，半径 150
-  // baseStyle()
-  // guide.beginPath(); guide.arc(400, 300, 150, 0, Math.PI * 2); guide.stroke()
-
-  // 3. 字母 S：两个半圆拼起来
-  // baseStyle()
-  // guide.beginPath(); guide.arc(400, 220, 80, Math.PI * 0.5, Math.PI * 1.5); guide.stroke()
-  // guide.beginPath(); guide.arc(400, 380, 80, Math.PI * 1.5, Math.PI * 0.5); guide.stroke()
 }
 
 /**

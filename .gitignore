@@ -18,6 +18,15 @@ __pycache__/
 # 临时/中间产物（AI 执行任务过程中生成的脚本、日志、截图等，项目结束后可整个删除）
 .dsh-scratch/
 
+# 知识库（styles.json）的生成物与快照：
+# - styles.next.json 是 scripts/styles-from-csv.mjs 产出的审阅文件，格式和线上一致，
+#   只用于人工对比，正式数据仍是 frontend/server/data/styles.json
+# - .tmp-ablation/ 放消融实验截图
+# - scripts/.backup/ 放 --apply 前的 styles.json 快照（回滚用，只留本地）
+frontend/server/data/styles.next.json
+.tmp-ablation/
+scripts/.backup/
+
 # 系统文件
 .DS_Store
 Thumbs.db

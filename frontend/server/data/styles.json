@@ -2,8 +2,23 @@
   {
     "id": "gf-01",
     "title": "水墨国风",
-    "tags": ["国风", "水墨", "传统", "东方", "中国风", "ink"],
-    "prompt": "Chinese ink painting, traditional brush strokes, misty mountains, elegant negative space, monochrome with subtle wash, rice paper texture",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "水墨",
+      "传统",
+      "东方",
+      "中国风",
+      "ink"
+    ],
+    "themes": [
+      "动物",
+      "自然",
+      "风景",
+      "传统"
+    ],
+    "styleModifiers": "Chinese ink wash painting, rice-paper texture, monochrome with subtle wash, visible brush strokes, generous negative space",
+    "contentHints": "misty mountains with distant birds",
     "negative": "photo, realistic, 3d render, western style, bright colors",
     "source": "自建",
     "styleKey": "guofeng-ink"
@@ -11,8 +26,22 @@
   {
     "id": "gf-02",
     "title": "青绿山水",
-    "tags": ["国风", "山水", "工笔", "青绿", "传统", "landscape"],
-    "prompt": "Chinese blue-green landscape painting, mineral pigments, majestic mountains, traditional gongbi style, fine golden outlines",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "山水",
+      "工笔",
+      "青绿",
+      "传统",
+      "landscape"
+    ],
+    "themes": [
+      "风景",
+      "自然",
+      "传统"
+    ],
+    "styleModifiers": "Chinese blue-green ink painting in gongbi fine-line style, mineral pigment palette, gold outlines on silk, layered translucent washes",
+    "contentHints": "layered mountains with a winding river and pine trees",
     "negative": "photo, realistic, 3d render, western style",
     "source": "自建",
     "styleKey": "guofeng-qinglv"
@@ -20,8 +49,21 @@
   {
     "id": "cy-01",
     "title": "川剧脸谱",
-    "tags": ["川渝", "川剧", "脸谱", "戏曲", "传统", "sichuan opera"],
-    "prompt": "Sichuan opera mask, vivid facial makeup, bold primary colors, symmetrical patterns, dramatic expression, traditional Chinese opera aesthetics",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "川剧",
+      "脸谱",
+      "戏曲",
+      "传统",
+      "sichuan opera"
+    ],
+    "themes": [
+      "传统",
+      "人物"
+    ],
+    "styleModifiers": "Sichuan opera theatrical color painting, vivid saturated pigments, bold symmetrical decorative patterns, dramatic stage lighting",
+    "contentHints": "a single opera mask face",
     "negative": "photo, realistic portrait, western makeup, muted colors",
     "source": "自建·川渝文化",
     "styleKey": "sichuan-opera"
@@ -29,8 +71,21 @@
   {
     "id": "cy-02",
     "title": "川渝烟火",
-    "tags": ["川渝", "火锅", "市井", "夜景", "霓虹", "chongqing"],
-    "prompt": "Chongqing alley at night, neon signs, hotpot steam, dense layered buildings, warm red and teal lights, cinematic street scene",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "火锅",
+      "市井",
+      "夜景",
+      "霓虹",
+      "chongqing"
+    ],
+    "themes": [
+      "城市",
+      "日常"
+    ],
+    "styleModifiers": "cinematic night ambience, neon signage glow, warm red and teal lighting, atmospheric haze, dense layered perspective",
+    "contentHints": "Chongqing alley at night with hotpot steam and crowded stalls",
     "negative": "clean minimal, daylight, empty street, muted colors",
     "source": "自建·川渝文化",
     "styleKey": "chuanyu-neon"
@@ -38,8 +93,24 @@
   {
     "id": "sf-01",
     "title": "赛博霓虹",
-    "tags": ["赛博", "赛博朋克", "科幻", "未来", "霓虹", "cyberpunk", "neon"],
-    "prompt": "cyberpunk illustration, neon glow, holographic signage, rain-slick streets, high contrast magenta and cyan, futuristic city",
+    "category": "赛博",
+    "tags": [
+      "赛博",
+      "赛博朋克",
+      "科幻",
+      "未来",
+      "霓虹",
+      "cyberpunk",
+      "neon"
+    ],
+    "themes": [
+      "动物",
+      "未来",
+      "城市",
+      "幻想"
+    ],
+    "styleModifiers": "cyberpunk illustration, neon glow, holographic signage, high contrast magenta and cyan, rain-slick reflective surfaces",
+    "contentHints": "futuristic city street",
     "negative": "daylight, rustic, watercolor, pastel",
     "source": "自建",
     "styleKey": "cyberpunk-neon"
@@ -47,8 +118,21 @@
   {
     "id": "wc-01",
     "title": "清透水彩",
-    "tags": ["水彩", "淡彩", "清新", "手绘", "watercolor"],
-    "prompt": "delicate watercolor illustration, soft washes, bleeding edges, light paper texture, airy pastel palette",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "淡彩",
+      "清新",
+      "手绘",
+      "watercolor"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "delicate watercolor illustration, soft washes, bleeding edges, light paper texture, airy pastel palette",
+    "contentHints": "gentle everyday scene",
     "negative": "hard edges, 3d render, neon, dark",
     "source": "自建",
     "styleKey": "watercolor-soft"
@@ -56,8 +140,21 @@
   {
     "id": "px-01",
     "title": "像素复古",
-    "tags": ["像素", "复古", "游戏", "怀旧", "pixel"],
-    "prompt": "pixel art, 16-bit retro game sprite, limited palette, crisp pixels, dithering, nostalgic",
+    "category": "像素",
+    "tags": [
+      "像素",
+      "复古",
+      "游戏",
+      "怀旧",
+      "pixel"
+    ],
+    "themes": [
+      "动物",
+      "游戏",
+      "日常"
+    ],
+    "styleModifiers": "pixel art, 16-bit retro game aesthetic, limited palette, crisp hard pixels, dithering",
+    "contentHints": "retro game scene",
     "negative": "smooth gradient, realistic, photo",
     "source": "自建",
     "styleKey": "pixel-retro"
@@ -65,8 +162,21 @@
   {
     "id": "ol-01",
     "title": "厚涂油画",
-    "tags": ["油画", "厚涂", "古典", "oil painting", "impasto"],
-    "prompt": "oil painting, thick impasto brushwork, rich chiaroscuro, classical composition, visible canvas texture",
+    "category": "油画",
+    "tags": [
+      "油画",
+      "厚涂",
+      "古典",
+      "oil painting",
+      "impasto"
+    ],
+    "themes": [
+      "动物",
+      "静物",
+      "人物"
+    ],
+    "styleModifiers": "oil painting, thick impasto brushwork, rich chiaroscuro, visible canvas texture, classical rendering",
+    "contentHints": "classical still life",
     "negative": "flat colors, anime, pixel, neon",
     "source": "自建",
     "styleKey": "oil-impasto"
@@ -74,8 +184,22 @@
   {
     "id": "mn-01",
     "title": "极简线稿",
-    "tags": ["极简", "线稿", "简笔", "黑白", "minimal", "line art"],
-    "prompt": "minimal line art, single-weight black strokes, generous white space, elegant simplicity, no shading",
+    "category": "极简",
+    "tags": [
+      "极简",
+      "线稿",
+      "简笔",
+      "黑白",
+      "minimal",
+      "line art"
+    ],
+    "themes": [
+      "动物",
+      "抽象",
+      "日常"
+    ],
+    "styleModifiers": "minimal line art, single-weight black strokes, generous white space, no shading",
+    "contentHints": "simple object study",
     "negative": "colorful, shading, texture, 3d",
     "source": "自建",
     "styleKey": "minimal-line"
@@ -83,10 +207,314 @@
   {
     "id": "an-01",
     "title": "日系动画",
-    "tags": ["二次元", "动漫", "动画", "日系", "anime"],
-    "prompt": "anime key visual, cel shading, clean lineart, vibrant but soft colors, detailed background, studio quality",
+    "category": "二次元",
+    "tags": [
+      "二次元",
+      "动漫",
+      "动画",
+      "日系",
+      "anime"
+    ],
+    "themes": [
+      "动物",
+      "人物",
+      "幻想"
+    ],
+    "styleModifiers": "anime key visual, cel shading, clean lineart, vibrant but soft colors, studio quality rendering",
+    "contentHints": "character portrait with background",
     "negative": "photo, realistic, oil painting, pixel",
     "source": "自建",
     "styleKey": "anime-cel"
+  },
+  {
+    "id": "hb-01",
+    "title": "绘本蜡笔",
+    "category": "绘本",
+    "tags": [
+      "绘本",
+      "蜡笔",
+      "童趣",
+      "手绘",
+      "crayon"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "幻想"
+    ],
+    "styleModifiers": "children's picture-book illustration, crayon texture, uneven hand-drawn contour lines, warm soft macaron palette, relaxed cute brushwork, slightly rough surface, gentle lighting, simple balanced composition",
+    "contentHints": "a round little creature sitting on soft grass",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-01"
+  },
+  {
+    "id": "zy-01",
+    "title": "治愈水彩",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "水彩",
+      "软萌",
+      "清新",
+      "healing"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "delicate watercolor illustration, pale pigment washes, natural bleeding and blooming, soft feathered edges, visible water stains, cold-press paper grain texture, light pink and cream ivory palette, translucent airy layering, no hard outlines, diffused gentle lighting, minimal balanced composition",
+    "contentHints": "a small fluffy creature curled asleep on a soft cushion",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-01"
+  },
+  {
+    "id": "mh-01",
+    "title": "梦幻星空",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "星空",
+      "发光",
+      "渐变",
+      "dreamy"
+    ],
+    "themes": [
+      "幻想",
+      "人物",
+      "抽象"
+    ],
+    "styleModifiers": "surreal dreamlike aesthetic, soft deep blue to violet gradient, fine luminous speckles, glowing particles, soft halation, volumetric light rays, gently blurred edges, translucent bright atmosphere, ethereal color blending, smooth digital gradient, subtle bloom, airy composition",
+    "contentHints": "a small figure standing beneath a glowing starry night sky",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-01"
+  },
+  {
+    "id": "cl-01",
+    "title": "古典肖像油画",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "古典",
+      "油画",
+      "写实",
+      "伦勃朗光",
+      "classical"
+    ],
+    "themes": [
+      "人物",
+      "静物",
+      "传统"
+    ],
+    "styleModifiers": "classical Western realist oil painting, heavy impasto brushwork, layered paint texture, visible canvas weave, warm brown tonal palette, soft gradual tonal gradations, deep transparent shadows, strong chiaroscuro contrast, solemn side lighting, balanced dignified composition, rich glazed darks",
+    "contentHints": "side profile portrait of an elderly man, warm studio light",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-01"
+  },
+  {
+    "id": "ab-01",
+    "title": "抽象色域",
+    "category": "抽象",
+    "tags": [
+      "抽象",
+      "色块",
+      "构成",
+      "极简",
+      "abstract"
+    ],
+    "themes": [
+      "抽象",
+      "幻想"
+    ],
+    "styleModifiers": "abstract painting, large flat solid color fields, crisp and softly blended boundaries, non-representational, proportional color areas, generous negative space, saturated yet restrained palette, quiet balanced composition, flat matte texture, minimal brushwork, smooth gradients",
+    "contentHints": "pure color field composition exploring emotion and color relationships",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-01"
+  },
+  {
+    "id": "hb-02",
+    "title": "儿童原生涂鸦",
+    "category": "绘本",
+    "tags": [
+      "绘本",
+      "涂鸦",
+      "儿童画",
+      "原生",
+      "稚拙",
+      "scribble"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "抽象"
+    ],
+    "styleModifiers": "children's original brushwork illustration, naive irregular hand-drawn lines, crayon and water-based marker traces on textured paper, colours bleeding past outlines, asymmetric composition, large empty negative space, deliberately unpolished, unretouched, raw uneven strokes",
+    "contentHints": "a wobbly little pet beside its cozy home",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-02"
+  },
+  {
+    "id": "su-01",
+    "title": "梦核梦境",
+    "category": "超现实",
+    "tags": [
+      "超现实",
+      "梦核",
+      "梦境",
+      "柔和",
+      "失序",
+      "dreamcore"
+    ],
+    "themes": [
+      "幻想",
+      "日常",
+      "抽象"
+    ],
+    "styleModifiers": "dreamcore aesthetic, soft overexposed lighting, low-saturation palette, hazy diffusion, blown-out highlights, pale feathered edges, slightly disordered spatial composition, quiet uncanny mood, subtle surreal incongruity, low contrast, soft focus, fine grain",
+    "contentHints": "a bedroom floating above clouds",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-01"
+  },
+  {
+    "id": "ab-02",
+    "title": "拼贴构成",
+    "category": "抽象",
+    "tags": [
+      "抽象",
+      "拼贴",
+      "剪纸",
+      "手工",
+      "构成",
+      "collage"
+    ],
+    "themes": [
+      "抽象",
+      "动物",
+      "日常"
+    ],
+    "styleModifiers": "handmade cut-paper collage, irregular scissor-cut shapes layered and glued, visible scissor marks along edges, soft shadows suggesting paper thickness, deliberately misaligned color blocks, torn deckled fibrous edges, flat frontal composition with no perspective, matte paper texture, subtle glue sheen, muted layered color palette, crisp cut-paper silhouettes, low-relief shadow depth",
+    "contentHints": "a tiny perched creature assembled from layered colored-paper shapes",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-02"
+  },
+  {
+    "id": "ab-03",
+    "title": "流体水拓",
+    "category": "抽象",
+    "tags": [
+      "抽象",
+      "流体",
+      "水拓",
+      "大理石纹",
+      "随机",
+      "fluid"
+    ],
+    "themes": [
+      "抽象",
+      "自然",
+      "幻想"
+    ],
+    "styleModifiers": "fluid art, marbled swirl texture, pigment diffusing on water surface, soft blended colour bands, fine ripple edges, no visible brushstrokes, no outlines, strong sense of flow, organic movement, glossy liquid finish, abstract composition",
+    "contentHints": "a soft swirling vortex of blended colours",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-03"
+  },
+  {
+    "id": "im-01",
+    "title": "点彩印象",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "点彩",
+      "光斑",
+      "户外",
+      "pointillism"
+    ],
+    "themes": [
+      "自然",
+      "风景",
+      "日常"
+    ],
+    "styleModifiers": "Impressionist pointillism, dense small dots of pure colour, optical colour mixing, luminous vibrating natural light, loose unoutlined edges, airy atmospheric depth, warm sunlit palette, broken brushwork texture, soft dappled tonal transitions, high-key luminous composition",
+    "contentHints": "sunlit grassy meadow with soft shadows",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-01"
+  },
+  {
+    "id": "ms-01",
+    "title": "年画剪纸",
+    "category": "民俗",
+    "tags": [
+      "年画",
+      "剪纸",
+      "民俗",
+      "喜庆",
+      "folk"
+    ],
+    "themes": [
+      "传统",
+      "动物",
+      "日常"
+    ],
+    "styleModifiers": "Chinese folk woodblock print, relief-cut bold outlines, high-saturation red yellow green palette, flat symmetrical composition, decorative motif infill, handmade rubbed ink texture, mottled fibrous paper grain, matte opaque pigment, graphic contour emphasis",
+    "contentHints": "ornamental carp gliding beside lotus blossoms on still water",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-01"
+  },
+  {
+    "id": "pp-01",
+    "title": "波普拼贴",
+    "category": "波普",
+    "tags": [
+      "波普",
+      "漫画",
+      "网点",
+      "撞色",
+      "pop"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "城市"
+    ],
+    "styleModifiers": "pop art style, bold black outlines, flat color fills, visible halftone dot texture, high-saturation clashing colors, repeated geometric motifs, comic panel grid layout, commercial poster flat composition, screen-print grain, hard-edged graphic shadows",
+    "contentHints": "an exaggerated comic-style portrait bust, bold graphic panel framing",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-01"
+  },
+  {
+    "id": "md-01",
+    "title": "立体构成",
+    "category": "现代主义",
+    "tags": [
+      "现代主义",
+      "立体主义",
+      "几何",
+      "多视角",
+      "分解",
+      "cubism"
+    ],
+    "themes": [
+      "抽象",
+      "静物",
+      "幻想"
+    ],
+    "styleModifiers": "Cubist style, fragmented geometric planes, simultaneous multiple viewpoints, bold outlined contours, flat color fields, flattened compressed space, reassembled spatial relationships, hard edges, angular faceted forms, restrained earthy palette, collage-like planar composition, shallow depth, crisp linear structure",
+    "contentHints": "a chair deconstructed and reassembled into geometric facets",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "modernist-01"
   }
 ]

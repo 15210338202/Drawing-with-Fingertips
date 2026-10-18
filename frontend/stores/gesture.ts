@@ -6,6 +6,12 @@ export const useGestureStore = defineStore('gesture', {
     state: 'idle' as 'idle' | 'drawing',
     /** 食指尖的归一化坐标，只在 drawing 时有值 */
     lastPoint: null as { x: number; y: number } | null,
+    /**
+     * 食指尖的悬停坐标（归一化、已镜像），只要有手就有值，不依赖捏合。
+     * 和 lastPoint 的区别：lastPoint 是「正在画的点」，松手/丢手就置空；
+     * 这个是「手在哪」，供悬停准星跟随，捏不捏合都不影响。
+     */
+    hoverPoint: null as { x: number; y: number } | null,
 
     // ===== 判定参数：Toolbar 的调试滑杆直接绑这几个，现场对着手调，调好了把默认值写回来 =====
     /** 捏合进入阈值：拇指尖到食指尖的距离 ÷ 手掌尺寸，小于它算捏合 */
@@ -43,6 +49,10 @@ export const useGestureStore = defineStore('gesture', {
     },
     setLastPoint(p: { x: number; y: number } | null) {
       this.lastPoint = p
+    },
+    /** 悬停准星的坐标；没识别到手时传 null */
+    setHoverPoint(p: { x: number; y: number } | null) {
+      this.hoverPoint = p
     },
     setPinchEnter(v: number) {
       this.pinchEnter = v

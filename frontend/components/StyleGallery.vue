@@ -46,7 +46,7 @@ async function pick(item: StyleResult) {
     tool: 'generate_image',
     args: {
       styleKey: item.id,
-      promptOverride: item.prompt,
+      promptOverride: item.styleModifiers,
       strength: 0.6,
     },
   })
