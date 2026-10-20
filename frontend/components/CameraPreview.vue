@@ -2,8 +2,15 @@
   <div class="border rounded p-4 bg-white">
     <h2 class="font-semibold">摄像头预览区</h2>
 
-    <!-- 预览区域：固定 4:3，摄像头未开启时显示占位/错误文字 -->
-    <div class="relative mt-2 w-[640px] max-w-full aspect-[4/3] bg-gray-200 flex items-center justify-center overflow-hidden rounded">
+    <!-- 预览区域：宽高比跟随真实画幅（而不是写死 4:3），否则 object-contain 会加黑边、
+         红点和关键点覆盖层就跟画面内容错位 -->
+    <div
+      class="relative mt-2 w-[640px] max-w-full bg-gray-200 flex items-center justify-center overflow-hidden rounded"
+      :style="{ aspectRatio: String(gesture.cameraAspect || 4 / 3) }"
+    >
+      <!-- 画面镜像：摄像头看到的是"对面的人"，不镜像时用户往右挥手、画面里往左动，
+           而准星和笔迹用的是镜像坐标（1−x）。不镜像的话三者朝向不一致，
+           标定红点会落在手的反侧，永远停不中。 -->
       <video
         ref="videoEl"
         width="640"
@@ -12,6 +19,8 @@
         playsinline
         muted
         class="w-full h-full object-contain bg-black"
+        style="transform: scaleX(-1)"
+        @loadedmetadata="syncCameraAspect"
       />
 
       <!-- 关键点覆盖层：盖在 video 上，尺寸和 video 一致，不接收鼠标事件 -->
@@ -21,6 +30,36 @@
         height="480"
         class="absolute inset-0 w-full h-full pointer-events-none"
       />
+
+      <!-- 标定模式：四个靶点依次点亮，食指停在上面半秒即采集。
+           靶点用百分比定位，和 video 的等比缩放自动对齐。 -->
+      <template v-if="calibrating">
+        <div
+          v-for="(target, index) in CALIBRATION_TARGETS"
+          :key="index"
+          class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+          :style="{ left: `${target.x * 100}%`, top: `${target.y * 100}%` }"
+        >
+          <div
+            class="h-6 w-6 rounded-full border-2 border-white transition-transform duration-150"
+            :class="[
+              index < capturedCount ? 'scale-125 bg-green-500' : 'bg-red-500',
+              index === activeTarget && index >= capturedCount ? 'scale-150 ring-4 ring-red-300' : '',
+            ]"
+          />
+          <!-- 停留进度：宽度 500ms 线性变化，正好对上 DWELL_MS，不需要每帧算 -->
+          <div v-if="index === activeTarget && index >= capturedCount" class="mt-1 h-0.5 w-6 overflow-hidden rounded bg-white/40">
+            <div
+              class="h-full bg-green-400 transition-[width] duration-500 ease-linear"
+              :class="dwellActive ? 'w-full' : 'w-0'"
+            />
+          </div>
+        </div>
+
+        <div class="pointer-events-none absolute inset-x-0 bottom-2 text-center text-xs font-medium text-white drop-shadow">
+          把食指移到红点上停半秒，依次完成 4 个点（{{ capturedCount }}/4）
+        </div>
+      </template>
 
       <!-- 性能 HUD：只在 ?perf=1 时出现，暂留作调参用，验收完再决定留还是删 -->
       <pre
@@ -65,14 +104,52 @@
       <span v-if="isActive && ready && landmarks" class="text-sm" :class="gestureState === 'drawing' ? 'text-blue-600' : 'text-gray-500'">
         {{ gestureState === 'drawing' ? '绘制中（已捏合）' : '待机：捏合开始画，握拳 1 秒清空' }}
       </span>
+
+      <!-- 透视校正：4 点标定，解决边缘画线变歪 / 斜向漂移。
+           不能加 :disabled="!landmarks"：手一离开画面（比如伸手去握鼠标）按钮就变灰，
+           点了完全没反应，看起来像坏了。标定本身允许先点开、再把手放回画面。 -->
+      <button
+        v-if="isActive && ready && !calibrating"
+        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+        @click="startCalibration"
+      >
+        标定
+      </button>
+      <button
+        v-if="calibrating"
+        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+        @click="cancelCalibration"
+      >
+        取消标定
+      </button>
+      <!-- 标定中的即时反馈：能看出「点击生效了没有」以及「系统当前认不认得到手」，
+           这两条正好覆盖「点了没反应」的两种最常见原因 -->
+      <span v-if="calibrating" class="text-sm text-blue-600">
+        标定中 {{ Math.min(capturedCount + 1, 4) }}/4 · {{ landmarks ? '已识别到手' : '未检测到手' }}
+      </span>
+      <template v-if="calibration.calibrated && !calibrating">
+        <span class="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">已标定</span>
+        <button class="text-xs text-gray-500 underline" @click="clearCalibration">清除标定</button>
+      </template>
     </div>
+
+    <!-- 标定失败/成功的提示 -->
+    <p v-if="calibrationError" class="mt-2 text-sm text-red-600">{{ calibrationError }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { clamp01 } from '~/utils/cursor'
+import { CALIBRATION_TARGETS, createDwellState, stepDwell } from '~/utils/calibration'
+import type { DwellState } from '~/utils/calibration'
+import { applyHomography, computeHomography, validateHomography } from '~/utils/homography'
+import type { Point } from '~/utils/homography'
+// 显式导入 store，不依赖 Pinia 的目录扫描：新加的 store 文件需要重启 dev server 才会被自动导入，
+// 否则 useCalibrationStore 是 undefined，整个组件 setup 直接抛错（表现为按钮点了没反应）
+import { useCalibrationStore } from '~/stores/calibration'
 
 const gesture = useGestureStore()
+const calibration = useCalibrationStore()
 
 /** 手部关键点识别：推理跑在 Worker 里，结果异步写进 landmarks */
 const {
@@ -114,6 +191,106 @@ const captureError = ref('')
 /** 模板里只显示一条错误，模型错误优先 */
 const statusError = computed(() => trackingError.value || captureError.value)
 
+// ===== 4 点透视标定（R7）=====
+/**
+ * 标定含义：把「手实际能够到的那块区域」拉成正矩形再映射到整块画布。
+ * 靶点落在预览的 20%–80%（避开摄像头边缘，那里的关键点最不稳），
+ * 映射目标取画布四角 (0,0)–(1,1)，所以标定后 20%–80% 这块区域就能画满整张画布。
+ */
+const CANVAS_CORNERS: Point[] = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+]
+
+const calibrating = ref(false)
+const calibrationError = ref('')
+/** 正在等第几个靶点（UI 高亮用） */
+const activeTarget = ref(0)
+/** 已采集到的点数 */
+const capturedCount = ref(0)
+/** 是否正停在靶点上（触发进度条动画） */
+const dwellActive = ref(false)
+
+/** 停留状态机用普通对象：每帧都推进，没必要做成响应式 */
+let dwell: DwellState = createDwellState()
+
+function startCalibration() {
+  // 包一层 try/catch：万一 setHoverPoint/矩阵等依赖有问题，错误要显示在界面上，
+  // 而不是让点击静默失败（"点了没反应"是最难查的故障）
+  try {
+    dwell = createDwellState()
+    activeTarget.value = 0
+    capturedCount.value = 0
+    dwellActive.value = false
+    calibrationError.value = ''
+    calibrating.value = true
+  }
+  catch (err) {
+    calibrationError.value = `标定启动失败：${(err as Error)?.message ?? String(err)}`
+  }
+}
+
+function cancelCalibration() {
+  calibrating.value = false
+  dwellActive.value = false
+  calibrationError.value = ''
+  dwell = createDwellState()
+}
+
+function clearCalibration() {
+  calibration.clear()
+  calibrationError.value = ''
+}
+
+/** 每帧推进停留判定；四点采齐就结算 */
+function advanceCalibration(point: Point | null) {
+  const step = stepDwell(dwell, point, performance.now(), { aspect: gesture.cameraAspect })
+  dwell = step.state
+
+  // 只把发生变化的值写进响应式状态：否则 30FPS 每帧都会触发一次组件更新
+  if (activeTarget.value !== dwell.index) activeTarget.value = dwell.index
+  if (capturedCount.value !== dwell.captured.length) capturedCount.value = dwell.captured.length
+  if (dwellActive.value !== step.active) dwellActive.value = step.active
+
+  if (step.done) finishCalibration()
+}
+
+function finishCalibration() {
+  const src = dwell.captured
+  const matrix = computeHomography(src, CANVAS_CORNERS)
+
+  if (matrix) {
+    const check = validateHomography(matrix, src, CANVAS_CORNERS)
+    if (check.ok) {
+      calibration.save(matrix)
+      calibrating.value = false
+      dwellActive.value = false
+      calibrationError.value = ''
+      dwell = createDwellState()
+      return
+    }
+
+    // 校验不过：重来一轮，但把原因留在界面上
+    const reason = check.reason ?? '标定结果不可用，请重试'
+    startCalibration()
+    calibrationError.value = reason
+    return
+  }
+
+  startCalibration()
+  calibrationError.value = '矩阵求解失败，请重新标定'
+}
+
+/**
+ * 归一化坐标 → 画布坐标。
+ * 没标定时原样返回：这是兜底路径，缺矩阵绝不能崩。
+ */
+function mapPoint(point: Point): Point {
+  return calibration.matrix ? applyHomography(point, calibration.matrix) : point
+}
+
 // ===== 性能 HUD（?perf=1 才启用）=====
 // 采样本身在 useHandTracking 里跑，这里只负责每 250ms 把快照画到右上角。
 // 断笔次数：绘制中手被跟丢 → 状态回 idle 且这一帧没有关键点，算一次断笔。
@@ -152,6 +329,9 @@ function paintPerf(now: number) {
 }
 
 onMounted(() => {
+  // 从 localStorage 恢复上次的标定；没标定过就保持 null，映射退化为原样
+  calibration.load()
+
   if (!showPerf) return
   perfRafId = requestAnimationFrame(paintPerf)
 })
@@ -176,6 +356,19 @@ const MIN_FRAME_INTERVAL = 1000 / 30
  * 解码、结构化传输、模型预处理的耗时都会跟着降；不做放大，避免画幅小时白费算力。
  */
 const DETECT_MAX_WIDTH = 480
+
+/**
+ * 把真实画幅的宽高比写进手势 store。
+ *
+ * 手势判定的距离要按它换算：MediaPipe 的 x 是按画面【宽】归一化、y 是按【高】归一化，
+ * 640×480 下同样 51 像素的横竖位移，算出来是 0.08 和 0.107 —— 相差 33%（R2 的根因）。
+ * 写真实值而不是写死 4:3，是为了外接摄像头或浏览器协商出别的分辨率时也能自动跟上。
+ */
+function syncCameraAspect() {
+  const video = videoEl.value
+  if (!video?.videoWidth || !video.videoHeight) return
+  gesture.setCameraAspect(video.videoWidth / video.videoHeight)
+}
 
 /** 打开摄像头：640×480 前置，不采集音频（分辨率不要调高，否则 MediaPipe 推理会慢） */
 async function startCamera() {
@@ -204,6 +397,9 @@ async function startCamera() {
       videoEl.value.srcObject = mediaStream
       // 自动播放策略或权限边界可能让 play() 失败，这里不阻断：autoplay 属性会兜底
       await videoEl.value.play().catch(() => {})
+
+      // play() 之后 metadata 通常已就绪；没就绪的话 loadedmetadata 事件会再补一次
+      syncCameraAspect()
     }
 
     isActive.value = true
@@ -310,16 +506,20 @@ function drawLandmarks(points: { x: number, y: number }[] | null) {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   if (!points?.length) return
 
+  // 这里必须和 video 一起镜像：画面已经被 scaleX(-1) 翻过，关键点如果不翻，
+  // 调试点就会落在手的反侧。镜像后的 x = 1 - x，和准星/笔迹是同一个朝向。
+  const mirrorX = (x: number) => (1 - x) * canvas.width
+
   ctx.fillStyle = '#22c55e'
   for (const point of points) {
-    ctx.fillRect(point.x * canvas.width - 3, point.y * canvas.height - 3, 6, 6)
+    ctx.fillRect(mirrorX(point.x) - 3, point.y * canvas.height - 3, 6, 6)
   }
 
   // 食指尖（索引 8）单独标红：画线用的就是它
   const indexTip = points[8]
   if (indexTip) {
     ctx.fillStyle = '#ef4444'
-    ctx.fillRect(indexTip.x * canvas.width - 5, indexTip.y * canvas.height - 5, 10, 10)
+    ctx.fillRect(mirrorX(indexTip.x) - 5, indexTip.y * canvas.height - 5, 10, 10)
   }
 }
 
@@ -329,37 +529,52 @@ const SAMPLE_INTERVAL = 1000 / 30
 
 /**
  * 食指尖的归一化坐标写进 gesture store，给 DrawingCanvas 用。
- * 存的是「镜像翻转 + 平滑后」的 0–1 坐标，画布那边再乘自己的 width/height。
+ * 存的是「镜像翻转 → 透视校正 → 平滑」后的 0–1 坐标，画布那边再乘自己的 width/height。
  *
  * 写两个位置：
- * - hoverPoint：只要有手就写（不依赖捏合），给悬停准星跟随用；用未平滑的原始坐标，
+ * - hoverPoint：只要有手就写（不依赖捏合），给悬停准星跟随用；用未平滑的值，
  *   视觉平滑交给画布那边的 Lerp（那边是 60FPS 渲染，比在这里按 30FPS 平滑更跟手）；
  * - lastPoint：只有 drawing 状态才写，松手/丢手写 null 让画布断开笔画。
+ *
+ * 标定模式下走另一条分支：用**未做透视校正**的镜像坐标，这样食指能和屏幕上的红点对上；
+ * 同时不落笔，避免在标定过程中往画布上画线。
  */
 function syncIndexFingertip(points: { x: number, y: number }[] | null) {
   const indexTip = points?.[8]
 
-  // 悬停坐标：镜像 + 夹到 0–1（夹取只影响显示，不改落笔坐标，避免准星飘出画布）
-  gesture.setHoverPoint(indexTip
+  // 镜像：关键点 x 是"画面左边缘为 0"的原始坐标，而预览画面和覆盖层都已经 scaleX(-1) 翻过，
+  // 所以这里换算成「屏幕上的位置」—— 1 - x。这样准星、笔迹、标定红点、调试点四者同向。
+  const raw: Point | null = indexTip
     ? { x: clamp01(1 - indexTip.x), y: clamp01(indexTip.y) }
-    : null)
+    : null
+
+  if (calibrating.value) {
+    advanceCalibration(raw)
+    gesture.setHoverPoint(raw)
+    // 标定期间不落笔：否则采集过程会在画布上留下乱线
+    resetSmoothing()
+    gesture.setLastPoint(null)
+    return
+  }
+
+  // 透视校正后的坐标：准星和笔迹都用它，两者才能始终重合
+  const mapped = raw ? mapPoint(raw) : null
+  gesture.setHoverPoint(mapped)
 
   // 待机、手丢了、松开手指，都等于抬笔：
   // 必须写 null 断开笔画，否则画布会把上一笔的末尾和下一笔的起点连成一条长线。
-  if (!indexTip || gestureState.value !== 'drawing') {
+  if (!mapped || gestureState.value !== 'drawing') {
     // 顺便清空平滑缓冲，否则下一笔起点会被上一笔末尾“粘”住
     resetSmoothing()
     gesture.setLastPoint(null)
     return
   }
 
-  // 摄像头画面对用户来说是镜像的：人往自己右边挥手，画面里 x 反而变小。
-  // 先翻转再平滑——翻转是线性的，先后顺序不影响结果，但放一起更好读。
-  // 注意：上面 drawLandmarks() 里的关键点不能翻，那一层必须和 video 画面像素对齐。
-  const x = smoothX(1 - indexTip.x)
-  const y = smoothY(indexTip.y)
+  // 平滑放在校正之后：缓冲区里存的应该是一致的画布坐标，不能一半原始一半校正
+  const x = smoothX(mapped.x)
+  const y = smoothY(mapped.y)
 
-  // 【临时采集代码，实验结束后删除】存的就是真正画到画布上的那个值（已翻转、已平滑）
+  // 【临时采集代码，实验结束后删除】存的就是真正画到画布上的那个值（已翻转、已校正、已平滑）
   const now = performance.now()
   if (now - lastSampleTs >= SAMPLE_INTERVAL) {
     lastSampleTs = now
@@ -417,6 +632,11 @@ function releaseStream() {
   gesture.setLastPoint(null)
   // 准星也要跟着消失，否则会定格在画面里最后一个位置
   gesture.setHoverPoint(null)
+
+  // 标定做到一半就关摄像头：退出标定模式，否则红点会挂在一个没有画面的框上
+  calibrating.value = false
+  dwellActive.value = false
+  dwell = createDwellState()
 }
 
 /** 把 getUserMedia 的异常翻译成用户能看懂的中文提示 */

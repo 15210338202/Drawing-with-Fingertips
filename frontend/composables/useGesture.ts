@@ -1,17 +1,38 @@
 import type { HandLandmark } from './useHandTracking'
 
+/** 拿不到真实画幅时的兜底宽高比（摄像头默认 640×480） */
+const DEFAULT_ASPECT = 4 / 3
+
 /**
- * 两个关键点之间的欧氏距离（只用 x、y：z 的抖动太大，不适合做判定）。
+ * 两个关键点之间的距离，**已换算到等比空间**。
  *
- * TODO(第 4 周 · 性能优化)：MediaPipe 的 x 是按画面【宽】归一化的、y 是按画面【高】归一化的，
- * 640×480 下横竖尺度差 4:3，所以这个距离是被拉伸过的 —— 同一个手势横着做和竖着做，
- * 算出来的值最多差 33%，阈值因此带方向性。
- * 修法：算距离前把 x 乘上宽高比（4/3）换算到等比空间。
- * 本周不动的理由：一改，捏合的比例整体放大约 1.33 倍，0.35/0.45 这两个阈值等于变松，
- * 现有手感会变、滑杆得重新标定，不值得打断 Agent 主线。
+ * 为什么必须换算：MediaPipe 的 x 是按画面【宽】归一化的、y 是按画面【高】归一化的。
+ * 640×480 下同样是 51 像素的位移，横向只算出 0.08、纵向算出 0.107 —— 相差 33%。
+ * 表现就是：横向捏合和纵向捏合的手感不一样，阈值只能对着某一个方向调。
+ * 修法：算距离前把 dx 乘上宽高比（w/h），把两者都换算成「以画面高度为单位」的尺度。
+ *
+ * 物理上等价于：在正方形像素空间里量距离，而不是在归一化拉伸空间里量。
+ *
+ * @param aspect 画面宽高比 = video.videoWidth / video.videoHeight
  */
-function distance(a: { x: number, y: number }, b: { x: number, y: number }) {
-  return Math.hypot(a.x - b.x, a.y - b.y)
+function distance(
+  a: { x: number, y: number },
+  b: { x: number, y: number },
+  aspect: number,
+) {
+  const dx = (a.x - b.x) * aspect
+  const dy = a.y - b.y
+  return Math.hypot(dx, dy)
+}
+
+/**
+ * 宽高比的兜底与熔断。
+ * 摄像头还没 metadata 时 store 里可能是 undefined；0/NaN 会让距离恒为 0、捏合永远成立，
+ * 所以这里把不合理值一律退回 4:3。
+ */
+function normalizeAspect(value: number | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return DEFAULT_ASPECT
+  return value
 }
 
 /**
@@ -43,13 +64,16 @@ export function useGesture() {
   /**
    * 指尖到手腕的距离 ÷ 手掌尺寸。
    * 手掌大小因人而异、离摄像头远近也会变，所以必须用比例，不能用绝对距离。
+   *
+   * 注意 aspect 必须和下面算 palmSize 用的是同一个：分子分母在同一度量空间里，
+   * 比值才有意义（手掌方向不同时两边的缩放系数不一样，不能只缩一边）。
    */
-  function tipRatio(landmarks: HandLandmark[], tipIndex: number, palmSize: number) {
+  function tipRatio(landmarks: HandLandmark[], tipIndex: number, palmSize: number, aspect: number) {
     const tip = landmarks[tipIndex]
     const wrist = landmarks[0]
     if (!tip || !wrist) return Number.POSITIVE_INFINITY
 
-    return distance(tip, wrist) / palmSize
+    return distance(tip, wrist, aspect) / palmSize
   }
 
   /**
@@ -94,17 +118,20 @@ export function useGesture() {
       return state.value
     }
 
-    // 手掌尺寸用手腕(0)到中指根(9)的距离，不能写死固定值
-    const palmSize = distance(landmarks[0], landmarks[9]) || 1
+    // 画面宽高比每帧读一次：摄像头换分辨率（外接/内置切换）时自动跟上，不用重新加载页面
+    const aspect = normalizeAspect(store.cameraAspect)
 
-    const pinchRatio = distance(landmarks[4], landmarks[8]) / palmSize
+    // 手掌尺寸用手腕(0)到中指根(9)的距离，不能写死固定值
+    const palmSize = distance(landmarks[0], landmarks[9], aspect) || 1
+
+    const pinchRatio = distance(landmarks[4], landmarks[8], aspect) / palmSize
 
     // 四指里离手腕最远的那根：握拳判定看它，它也最能说明“这个拳攥紧了没有”
     const fingerRatio = store.fistFingers.reduce(
-      (worst, index) => Math.max(worst, tipRatio(landmarks, index, palmSize)),
+      (worst, index) => Math.max(worst, tipRatio(landmarks, index, palmSize, aspect)),
       0,
     )
-    const thumbRatio = tipRatio(landmarks, 4, palmSize)
+    const thumbRatio = tipRatio(landmarks, 4, palmSize, aspect)
 
     // 读出来的数写进 store，Toolbar 实时显示，方便对着调滑杆
     store.setDebugRatios(pinchRatio, fingerRatio, thumbRatio)

@@ -14,6 +14,12 @@ export const useGestureStore = defineStore('gesture', {
     hoverPoint: null as { x: number; y: number } | null,
 
     // ===== 判定参数：Toolbar 的调试滑杆直接绑这几个，现场对着手调，调好了把默认值写回来 =====
+    /**
+     * 画面宽高比（videoWidth / videoHeight），由 CameraPreview 在拿到 metadata 后写进来。
+     * 关键点距离要按它换算到等比空间，否则横向和纵向捏合的读数会差 33%。
+     * 默认 4:3 对应摄像头约束 640×480，拿不到真实画幅时也不会算错。
+     */
+    cameraAspect: 4 / 3,
     /** 捏合进入阈值：拇指尖到食指尖的距离 ÷ 手掌尺寸，小于它算捏合 */
     pinchEnter: 0.25,
     /** 捏合退出阈值：大于它算松开。必须比 pinchEnter 大，两者之差就是迟滞 */
@@ -53,6 +59,10 @@ export const useGestureStore = defineStore('gesture', {
     /** 悬停准星的坐标；没识别到手时传 null */
     setHoverPoint(p: { x: number; y: number } | null) {
       this.hoverPoint = p
+    },
+    /** 摄像头画幅变了（换分辨率/外接设备）时更新，距离换算要用它 */
+    setCameraAspect(v: number) {
+      if (Number.isFinite(v) && v > 0) this.cameraAspect = v
     },
     setPinchEnter(v: number) {
       this.pinchEnter = v
