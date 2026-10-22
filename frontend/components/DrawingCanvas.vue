@@ -61,11 +61,66 @@
         </div>
       </div>
     </div>
+
+    <!-- 共情式解读（P2-10）：看图 → 讲成温柔的话。
+         两次大模型调用（llava ~17s + DeepSeek 3～8s），所以 loading 文案要说清在等什么。 -->
+    <div class="mt-3 rounded border p-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          class="rounded bg-purple-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+          :disabled="analyzing"
+          @click="analyzeSketch"
+        >
+          {{ analyzing ? 'AI 正在认真观察…（约 20 秒）' : '让 AI 猜猜我画了什么' }}
+        </button>
+
+        <!-- 语气切换：同一张画，四种陪法 -->
+        <div class="flex flex-wrap gap-1">
+          <button
+            v-for="item in INSIGHT_TONES"
+            :key="item.key"
+            class="rounded-full border px-2 py-0.5 text-xs"
+            :class="tone === item.key ? 'border-purple-400 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600'"
+            :title="item.hint"
+            @click="switchTone(item.key)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="insightError" class="mt-2 text-xs text-amber-600">{{ insightError }}</p>
+
+      <div v-if="insight" class="mt-3 space-y-1 rounded bg-gray-50 p-3 text-sm text-gray-800">
+        <p><span class="font-semibold">它看到了：</span>{{ insight.observation }}</p>
+        <p><span class="font-semibold">它感觉到：</span>{{ insight.feeling }}</p>
+        <p><span class="font-semibold">想问问你：</span>{{ insight.invitation }}</p>
+
+        <div class="flex flex-wrap items-center gap-2 pt-1">
+          <span class="text-xs text-gray-500">试试这样画：</span>
+          <button
+            v-for="item in insight.suggestions"
+            :key="item"
+            class="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-100"
+            :title="`检索「${item}」相关风格`"
+            @click="pickSuggestion(item)"
+          >
+            {{ item }}
+          </button>
+        </div>
+
+        <p v-if="insight.degrade && insight.degrade !== 'none'" class="pt-1 text-[11px] text-gray-400">
+          （{{ degradeText }}）
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { lerp, toPercent } from '~/utils/cursor'
+import { DEFAULT_TONE, INSIGHT_TONES } from '~/utils/insight'
+import type { Insight, InsightToneKey } from '~/utils/insight'
 
 const brush = useBrushStore()
 const gesture = useGestureStore()
@@ -289,6 +344,94 @@ function binarizeStrokes(pixels: Uint8ClampedArray) {
     pixels[i + 2] = value
     pixels[i + 3] = 255
   }
+}
+
+// ===== 共情式解读（P2-10）=====
+const { runAction } = useAgent()
+
+const analyzing = ref(false)
+/** 解读结果；degrade 表示哪一级模型降级了 */
+const insight = ref<(Insight & { degrade?: string, keywords?: string, costMs?: number }) | null>(null)
+const insightError = ref('')
+const tone = ref<InsightToneKey>(DEFAULT_TONE)
+
+/** 降级说明：让用户知道现在看到的是"真解读"还是"兜底文案"，答辩时也好讲 */
+const degradeText = computed(() => {
+  switch (insight.value?.degrade) {
+    case 'llava':
+      return '看图这一步没成功，文案是按通用想象写的'
+    case 'deepseek':
+      return '这段是本地兜底文案；配置 DEEPSEEK_API_KEY 后会变成个性化解读'
+    case 'both':
+      return '模型都没连上，先用固定文案顶上'
+    default:
+      return ''
+  }
+})
+
+/**
+ * 让 AI 看当前的图并给出一段共情式解读。
+ * 用的是 exportSketch()：已经裁过白边、加粗、二值化成 512 线稿，正好适合 llava。
+ */
+async function analyzeSketch() {
+  if (analyzing.value) return
+
+  const imageBase64 = exportSketch()
+  if (!imageBase64) {
+    insightError.value = '画布还没准备好，先画几笔'
+    return
+  }
+
+  analyzing.value = true
+  insightError.value = ''
+
+  try {
+    const res = await $fetch<{
+      success: boolean
+      data: Insight & { degrade?: string, keywords?: string, costMs?: number }
+    }>('/api/analyze-sketch', {
+      method: 'POST',
+      body: { imageBase64, tone: tone.value },
+      // 服务端最坏情况是 llava 45s + DeepSeek 30s，客户端给足 90s
+      timeout: 90000,
+    })
+
+    insight.value = res.data
+  }
+  catch (err) {
+    insightError.value = describeInsightError(err)
+  }
+  finally {
+    analyzing.value = false
+  }
+}
+
+/** 切换语气：已经有结果时立刻重算一次，方便现场对比四种语气 */
+function switchTone(next: InsightToneKey) {
+  if (tone.value === next) return
+
+  tone.value = next
+  if (insight.value && !analyzing.value) void analyzeSketch()
+}
+
+/** 点建议 → 走已有的风格检索，结果出现在风格库里 */
+function pickSuggestion(text: string) {
+  void runAction({ tool: 'search_style', args: { style: text, k: 3 } })
+}
+
+/** Nitro 的 createError 会把原因放在 data.statusMessage 里 */
+function describeInsightError(err: unknown) {
+  const error = err as {
+    statusMessage?: string
+    data?: { statusMessage?: string, message?: string }
+    message?: string
+  }
+
+  return error?.data?.statusMessage
+    ?? error?.statusMessage
+    ?? error?.data?.message
+    ?? error?.message
+    ?? '解读失败，请稍后再试'
 }
 
 /** 关掉生成结果浮层，画布保持原样 */

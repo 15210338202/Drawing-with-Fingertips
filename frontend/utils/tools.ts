@@ -1,11 +1,13 @@
 import { z } from 'zod'
 
 /**
- * 8 个工具的元信息。
+ * 给模型用的工具表。
  * `signature` 必须和 docs/api.md 第 2 节的表格一致 —— 它是唯一给 LLM 看的参数说明，
  * 改契约时 doc、signature、parameters 三处一起改。
  *
- * 注意：这里只是「告诉模型有哪些工具」，真正执行动作是明天的任务。
+ * P2-11 之后 **没有 search_style** 了：风格清单直接写进 system prompt，
+ * 由模型在下 generate_image 时直接选 id（清单只有二十来条，比任何检索都准）。
+ * /api/search-style 路由保留，只服务「手动浏览画廊」这个场景。
  */
 export const TOOL_NAMES = [
   'set_color',
@@ -14,7 +16,6 @@ export const TOOL_NAMES = [
   'clear',
   'export',
   'analyze_sketch',
-  'search_style',
   'generate_image',
 ] as const
 
@@ -29,7 +30,7 @@ interface AgentToolMeta {
   parameters: z.ZodType
 }
 
-/** Record<AgentToolName, …> 保证 8 个工具一个都不能少 */
+/** Record<AgentToolName, …> 保证工具表一个都不能少 */
 export const AGENT_TOOLS: Record<AgentToolName, AgentToolMeta> = {
   set_color: {
     signature: 'set_color(color: string)',
@@ -71,19 +72,11 @@ export const AGENT_TOOLS: Record<AgentToolName, AgentToolMeta> = {
       imageBase64: z.string().optional().describe('不传就用画布当前内容'),
     }),
   },
-  search_style: {
-    signature: 'search_style(style: string, k?: number)',
-    description: '检索风格模板（RAG）。用户提到具体风格时用，例如国风、水墨、赛博朋克。',
-    parameters: z.object({
-      style: z.string().describe('风格关键词，例如 国风 / cyberpunk'),
-      k: z.number().min(1).max(10).optional().describe('取几条，默认 3'),
-    }),
-  },
   generate_image: {
     signature: 'generate_image(styleKey: string, strength: number 0–1, refImage?: string)',
-    description: '把草图风格化生成图片，一般排在 search_style 之后。',
+    description: '把草图风格化生成图片。styleKey 必须从 system prompt 里给的画风清单中选一个 id，不要编造。',
     parameters: z.object({
-      styleKey: z.string().describe('风格模板 id，来自 search_style 的结果'),
+      styleKey: z.string().describe('画风 id（形如 gf-01），必须来自清单'),
       strength: z.number().min(0).max(1).describe('风格化强度 0–1，越大越不像原图'),
       refImage: z.string().optional().describe('参考图 base64，不传就用当前画布'),
     }),

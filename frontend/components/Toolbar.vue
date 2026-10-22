@@ -22,13 +22,13 @@
     <div class="space-y-2 border-t pt-3">
       <label class="block text-xs text-gray-600">
         <span class="flex justify-between">
-          <span>捏合进入阈值</span>
+          <span>捏合进入阈值（2D）</span>
           <span class="font-mono">{{ store.pinchEnter.toFixed(2) }}</span>
         </span>
         <input
           type="range"
-          min="0.2"
-          max="0.5"
+          min="0.05"
+          max="3"
           step="0.01"
           class="w-full"
           :value="store.pinchEnter"
@@ -38,13 +38,13 @@
 
       <label class="block text-xs text-gray-600">
         <span class="flex justify-between">
-          <span>捏合退出阈值</span>
+          <span>捏合退出阈值（2D）</span>
           <span class="font-mono">{{ store.pinchExit.toFixed(2) }}</span>
         </span>
         <input
           type="range"
-          min="0.3"
-          max="0.6"
+          min="0.05"
+          max="3"
           step="0.01"
           class="w-full"
           :value="store.pinchExit"
@@ -92,7 +92,28 @@
         <span :class="store.debugPinchRatio < store.pinchEnter ? 'text-blue-600' : 'text-gray-800'">
           {{ store.debugPinchRatio.toFixed(3) }}
         </span>
-        <span class="text-gray-400">（进入 {{ store.pinchEnter.toFixed(2) }} / 退出 {{ store.pinchExit.toFixed(2) }}）</span>
+        <span class="text-gray-400">
+          [2D]
+          （进入 {{ store.pinchEnter.toFixed(2) }} / 退出 {{ store.pinchExit.toFixed(2) }}）
+        </span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>指尖 {{ formatDistance(store.debugPinchTip) }}</span>
+        <span>/ 等效掌尺 {{ formatDistance(store.debugPinchPalm) }}</span>
+        <span class="text-gray-400">· world {{ store.debugPinchWorldCount }}</span>
+        <button
+          class="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] hover:bg-gray-50"
+          @click="store.capturePinchEnter?.()"
+        >
+          捏合时记进入
+        </button>
+        <button
+          class="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] hover:bg-gray-50"
+          @click="store.capturePinchExit?.()"
+        >
+          张开时记退出
+        </button>
       </div>
 
       <div>
@@ -110,6 +131,10 @@
         次
         <span class="text-gray-400">（握拳不动说明手势没判定成功，动了但画布没清才是画布的问题）</span>
       </div>
+
+      <div class="text-gray-400">
+        读数 = 2D 指尖向量按掌长/掌宽两个方向归一化；先捏合记进入，再张开记退出。
+      </div>
     </div>
   </div>
 </template>
@@ -125,5 +150,11 @@ const emit = defineEmits<{ clear: [] }>()
  */
 function toNumber(event: Event) {
   return Number((event.target as HTMLInputElement).value)
+}
+
+/** 2D 距离是归一化值，直接显示三位小数 */
+function formatDistance(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '—'
+  return value.toFixed(3)
 }
 </script>

@@ -20,7 +20,11 @@ export const useGestureStore = defineStore('gesture', {
      * 默认 4:3 对应摄像头约束 640×480，拿不到真实画幅时也不会算错。
      */
     cameraAspect: 4 / 3,
-    /** 捏合进入阈值：拇指尖到食指尖的距离 ÷ 手掌尺寸，小于它算捏合 */
+    /**
+     * 捏合进入阈值：**2D** 指尖向量按掌长(0→9)/掌宽(5→17)各向异性归一化后的比例。
+     * 读数不一定是 0.25：手型、模型版本、手侧过来的角度都会影响它。
+     * 最快标定法：捏合时点 Toolbar 的「记录进入」，张开时点「记录退出」。
+     */
     pinchEnter: 0.25,
     /** 捏合退出阈值：大于它算松开。必须比 pinchEnter 大，两者之差就是迟滞 */
     pinchExit: 0.35,
@@ -34,8 +38,16 @@ export const useGestureStore = defineStore('gesture', {
     fistFingers: [8, 12, 16, 20],
 
     // ===== 调试读数：useGesture 每帧写进来，Toolbar 显示，用来现场对阈值 =====
-    /** 当前捏合比例：拇指尖到食指尖的距离 ÷ 手掌尺寸 */
+    /** 当前捏合比例：2D 指尖向量按掌长/掌宽各向异性归一化 */
     debugPinchRatio: 0,
+    /** 捏合读数的数据源：现在是 2d；保留字段便于以后接 3D 诊断 */
+    debugPinchSource: '2d' as '3d' | '2d',
+    /** 当前原始 2D 指尖距离（归一化），配合 debugPinchPalm 看比例是怎么来的 */
+    debugPinchTip: 0,
+    /** 等效掌尺 = 当前指尖距离 ÷ 比例；不是单一掌宽，只用于显示 */
+    debugPinchPalm: 0,
+    /** worldLandmarks 点数：只作诊断，不参与捏合判定 */
+    debugPinchWorldCount: 0,
     /** 当前四指指尖到手腕的**最大**归一化距离（握拳时要它小于 fistThreshold） */
     debugFingerRatio: 0,
     /** 当前拇指尖到手腕的归一化距离（只作参考，不参与握拳判定） */
@@ -80,10 +92,34 @@ export const useGestureStore = defineStore('gesture', {
       this.fistThreshold = v
     },
     /** useGesture 每帧写调试读数 */
-    setDebugRatios(pinch: number, fingers: number, thumb: number) {
+    setDebugRatios(pinch: number, fingers: number, thumb: number, source: '3d' | '2d' = '2d') {
       this.debugPinchRatio = pinch
+      this.debugPinchSource = source
       this.debugFingerRatio = fingers
       this.debugThumbRatio = thumb
+    },
+    /** useGesture 每帧写捏合原始距离，Toolbar 用来判断 0.5 是分子大还是分母小 */
+    setPinchDiagnostics(tip: number, palm: number, worldCount: number) {
+      this.debugPinchTip = tip
+      this.debugPinchPalm = palm
+      this.debugPinchWorldCount = worldCount
+    },
+    /**
+     * 现场标定：把**当前捏合读数**设成进入阈值。
+     * 不再需要先知道“正常应该是 0.25 还是 0.5”，捏住时点一下就行。
+     */
+    capturePinchEnter() {
+      if (!Number.isFinite(this.debugPinchRatio)) return
+      this.pinchEnter = Math.min(3, Math.round((this.debugPinchRatio + 0.02) * 100) / 100)
+      if (this.pinchExit <= this.pinchEnter + 0.02) {
+        this.pinchExit = Math.min(3, Math.round((this.pinchEnter + 0.08) * 100) / 100)
+      }
+    },
+    /** 现场标定：把**当前张开读数**设成退出阈值 */
+    capturePinchExit() {
+      if (!Number.isFinite(this.debugPinchRatio)) return
+      const exit = Math.round((this.debugPinchRatio - 0.02) * 100) / 100
+      this.pinchExit = Math.max(this.pinchEnter + 0.02, Math.min(3, exit))
     },
     /** 请求清空画布（DrawingCanvas 监听 clearRequested） */
     requestClear() {

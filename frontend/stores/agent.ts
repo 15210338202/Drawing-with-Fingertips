@@ -49,6 +49,12 @@ export const useAgentStore = defineStore('agent', {
     generatedImage: null as string | null,
 
     /**
+     * 上一次生成用的画风 id。
+     * 传进 /api/agent 的 context，让模型在「随便来一个」时避开重复选择。
+     */
+    lastStyleKey: '',
+
+    /**
      * 画布上有没有内容，作为 /api/agent 的 context.hasSketch 传上去。
      * DrawingCanvas 落笔时置 true、清空时置 false —— 让 AI 知道是空画布还是已经有草图。
      */
@@ -91,6 +97,10 @@ export const useAgentStore = defineStore('agent', {
     },
     setGeneratedImage(url: string | null) {
       this.generatedImage = url
+    },
+    /** 记录上一次生成用的画风，供「随便来一个」避重 */
+    setLastStyleKey(id: string) {
+      this.lastStyleKey = id
     },
     setSketchExporter(fn: null | (() => string | null)) {
       this.sketchExporter = fn

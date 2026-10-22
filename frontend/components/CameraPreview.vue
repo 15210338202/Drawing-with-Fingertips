@@ -97,7 +97,7 @@
 
       <span v-if="isActive && !ready && !statusError" class="text-sm text-gray-500">手部模型加载中…</span>
       <span v-else-if="isActive && ready" class="text-sm text-green-600">
-        {{ landmarks ? '已识别到手' : '未检测到手' }}
+        {{ hands.length === 0 ? '未检测到手' : hands.length > 1 ? `已识别到 ${hands.length} 只手（自动锁定主手）` : '已识别到手' }}
       </span>
 
       <!-- 手势状态：调滑杆的时候靠它确认到底有没有判定成捏合 -->
@@ -144,6 +144,7 @@ import { CALIBRATION_TARGETS, createDwellState, stepDwell } from '~/utils/calibr
 import type { DwellState } from '~/utils/calibration'
 import { applyHomography, computeHomography, validateHomography } from '~/utils/homography'
 import type { Point } from '~/utils/homography'
+import type { DetectedHand } from '~/workers/hand.worker'
 // 显式导入 store，不依赖 Pinia 的目录扫描：新加的 store 文件需要重启 dev server 才会被自动导入，
 // 否则 useCalibrationStore 是 undefined，整个组件 setup 直接抛错（表现为按钮点了没反应）
 import { useCalibrationStore } from '~/stores/calibration'
@@ -151,9 +152,16 @@ import { useCalibrationStore } from '~/stores/calibration'
 const gesture = useGestureStore()
 const calibration = useCalibrationStore()
 
-/** 手部关键点识别：推理跑在 Worker 里，结果异步写进 landmarks */
+/**
+ * 手部关键点识别：推理跑在 Worker 里，结果异步写进 hands / mainHand。
+ * - hands：本帧全部手（用于覆盖层把所有手都画出来）
+ * - mainHand：R4 选出的主手（手势、笔迹、准星只认它）
+ * - landmarks：mainHand 的 2D 关键点（兼容原有调用与模板状态）
+ */
 const {
   landmarks,
+  hands,
+  mainHand,
   ready,
   error: trackingError,
   load,
@@ -342,6 +350,8 @@ let rafId = 0
 let lastVideoTime = -1
 /** 上一次真正发起推理的时间 */
 let lastDetectTs = 0
+/** 上一帧主手的 handedness；用来发现 R4 主手换人并在换人帧断笔 */
+let lastMainHandedness: DetectedHand['handedness'] | null = null
 
 /**
  * 抓帧的帧率上限（推理吞吐由 Worker 决定，这里只限制「最多多久抓一帧」）。
@@ -483,43 +493,85 @@ function captureFrame() {
 }
 
 /**
- * Worker 回传的关键点到了：画到覆盖层 → 推进手势状态机 → 决定要不要写 lastPoint。
- * landmarks 是异步回来的，所以放在 watch 里，而不是发起推理的那一帧里。
+ * Worker 回传的双手结果到了：画到覆盖层 → 用主手推进手势状态机 → 决定要不要写 lastPoint。
+ * hands 是异步回来的，所以放在 watch 里，而不是发起推理的那一帧里。
+ *
+ * 用 watch(hands) 而不是 watch(landmarks)：主手切换时 2D 数组可能来自同一只手但对象变了，
+ * 而 hands 每帧都是新数组，能保证覆盖层把两只手一起刷新。
  */
-watch(landmarks, (points) => {
+watch(hands, (list) => {
   // 摄像头已经关了但这条结果才回来：丢掉，否则画布上会多画一笔
   if (!isActive.value) return
 
-  drawLandmarks(points)
+  const hand = mainHand.value
+  drawHands(list, hand)
+
+  const handedness = hand?.handedness ?? null
+  const mainHandSwitched = lastMainHandedness !== null
+    && handedness !== null
+    && handedness !== lastMainHandedness
+  lastMainHandedness = handedness
 
   // 顺序不能反：syncIndexFingertip 要看这一帧更新后的手势状态
-  updateGesture(points)
-  syncIndexFingertip(points)
+  updateGesture(hand)
+
+  if (mainHandSwitched) {
+    // R4 主手换人：先断笔，且这一帧不写 lastPoint。
+    // 不这么做的话，画布会把「上一只手的最后位置 → 新主手的食指尖」连成一条横贯画面的线。
+    resetSmoothing()
+    gesture.setLastPoint(null)
+    return
+  }
+
+  syncIndexFingertip(hand?.landmarks ?? null)
 })
 
-/** 把 21 个关键点画到覆盖层上：归一化坐标 × canvas 宽高 */
-function drawLandmarks(points: { x: number, y: number }[] | null) {
+/**
+ * 把本帧所有手画到覆盖层上：归一化坐标 × canvas 宽高。
+ * 主手绿色、副手蓝色，食指尖（索引 8）标红；
+ * ?perf=1 时额外在手腕旁标 L/R 与 *（主手），方便调主手身份。
+ */
+function drawHands(list: DetectedHand[], main: DetectedHand | null) {
   const canvas = overlayEl.value
   const ctx = canvas?.getContext('2d')
   if (!canvas || !ctx) return
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  if (!points?.length) return
+  if (!list.length) return
 
   // 这里必须和 video 一起镜像：画面已经被 scaleX(-1) 翻过，关键点如果不翻，
   // 调试点就会落在手的反侧。镜像后的 x = 1 - x，和准星/笔迹是同一个朝向。
   const mirrorX = (x: number) => (1 - x) * canvas.width
 
-  ctx.fillStyle = '#22c55e'
-  for (const point of points) {
-    ctx.fillRect(mirrorX(point.x) - 3, point.y * canvas.height - 3, 6, 6)
-  }
+  ctx.font = '12px sans-serif'
+  ctx.textBaseline = 'top'
 
-  // 食指尖（索引 8）单独标红：画线用的就是它
-  const indexTip = points[8]
-  if (indexTip) {
-    ctx.fillStyle = '#ef4444'
-    ctx.fillRect(mirrorX(indexTip.x) - 5, indexTip.y * canvas.height - 5, 10, 10)
+  for (const hand of list) {
+    // mainHand 就是 hands 里的同一个对象引用（useHandTracking 直接返回元素）
+    const isMain = hand === main
+    const color = isMain ? '#22c55e' : '#60a5fa'
+
+    ctx.fillStyle = color
+    for (const point of hand.landmarks) {
+      ctx.fillRect(mirrorX(point.x) - 3, point.y * canvas.height - 3, 6, 6)
+    }
+
+    // 食指尖单独标记：画线用的就是它
+    const indexTip = hand.landmarks[8]
+    if (indexTip) {
+      ctx.fillStyle = isMain ? '#ef4444' : '#f59e0b'
+      ctx.fillRect(mirrorX(indexTip.x) - 5, indexTip.y * canvas.height - 5, 10, 10)
+    }
+
+    // handedness 标签只在 ?perf=1 调试时画：输入给模型的是未镜像的原始帧，
+    // MediaPipe 的 Left/Right 是按“自拍镜像”假设给的，直接展示给用户会看着左右反了。
+    // 身份维持只用它做内部区分，不影响准星/笔迹方向。
+    const wrist = hand.landmarks[0]
+    if (showPerf && wrist) {
+      const label = hand.handedness === 'Left' ? 'L' : hand.handedness === 'Right' ? 'R' : '?'
+      ctx.fillStyle = color
+      ctx.fillText(`${label}${isMain ? '*' : ''}`, mirrorX(wrist.x) + 8, wrist.y * canvas.height)
+    }
   }
 }
 
@@ -603,7 +655,8 @@ function stopTracking() {
 
   lastVideoTime = -1
   lastDetectTs = 0
-  drawLandmarks(null)
+  lastMainHandedness = null
+  drawHands([], null)
 }
 
 /**
@@ -673,6 +726,6 @@ onBeforeUnmount(() => {
   close()
 })
 
-// 暴露给父组件（要拿 landmarks 做手势判断时直接用）
-defineExpose({ videoEl, stream, isActive, landmarks, startCamera, stopCamera })
+// 暴露给父组件（要拿关键点/双手结果做手势判断时直接用）
+defineExpose({ videoEl, stream, isActive, landmarks, hands, mainHand, startCamera, stopCamera })
 </script>

@@ -1,3 +1,5 @@
+import { detectCasualIntent } from '~/utils/styles'
+
 /** /api/agent 的响应，契约见 docs/api.md 第 1 节 */
 export interface AgentReply {
   reply: string
@@ -53,6 +55,8 @@ export function useAgent() {
       canvasSize: { w: 800, h: 600 },
       brushColor: brush.color,
       recentActions: store.lastActions.map(action => action.tool),
+      // 上次用的画风：AI 用它避免「随便」时反复给同一个
+      lastStyle: store.lastStyleKey || undefined,
     }
   }
 
@@ -110,6 +114,8 @@ export function useAgent() {
         return '作品已导出'
       }
 
+      // P2-11 之后 Agent 不再下发 search_style（风格由模型直选 id）。
+      // 这里保留它只服务两个内部入口：解读卡片的建议按钮、以及手动检索调试。
       case 'search_style': {
         const query = String(args.style ?? '').trim() || lastUserText()
         const k = Number(args.k) || 3
@@ -153,14 +159,37 @@ export function useAgent() {
         })
 
         store.setGeneratedImage(res.imageUrl)
+        // 记下这次用的画风，下一次「随便」时让 AI 换一个
+        if (matched?.id || styleKey) store.setLastStyleKey(matched?.id || styleKey)
 
         return res.fallback
           ? `生成服务没成功（${res.reason ?? '未知原因'}），先用占位图顶上`
           : `生成完成，用时 ${res.costMs} ms`
       }
 
-      case 'analyze_sketch':
-        return 'analyze_sketch 的多模态分支还没接，这次跳过'
+      case 'analyze_sketch': {
+        const imageBase64 = typeof args.imageBase64 === 'string' && args.imageBase64.trim()
+          ? args.imageBase64
+          : exportSketch()
+
+        if (!imageBase64) return '看图失败：画布还没准备好'
+
+        // llava + DeepSeek 两级，最坏 20 秒左右，超时给足
+        const res = await $fetch<{
+          success: boolean
+          data: { observation: string, feeling: string, invitation: string, suggestions: string[], degrade?: string }
+        }>('/api/analyze-sketch', {
+          method: 'POST',
+          body: { imageBase64 },
+          timeout: 90000,
+        })
+
+        const { observation, feeling, invitation, suggestions } = res.data
+
+        // 一句自然语言回给对话区；建议里第一个顺手做成风格检索，让用户能直接接下一步
+        return `${observation}${feeling}想问问你：${invitation}`
+          + (suggestions.length ? `（要不要试试「${suggestions.join('」「')}」？）` : '')
+      }
 
       default:
         return `不认识的动作 ${action.tool}，跳过`
@@ -169,7 +198,7 @@ export function useAgent() {
 
   /**
    * 串行执行一串动作。
-   * 必须串行：后一步依赖前一步的结果（先 search_style 拿到 prompt，再 generate_image）。
+   * 必须串行而不是并发：动作之间可能互相影响（先改颜色再生成，生成时用的是改后的画布状态）。
    */
   async function executeActions(actions: AgentAction[]) {
     if (!actions.length) return
@@ -207,11 +236,21 @@ export function useAgent() {
     store.setFallback(false)
 
     try {
+      // 「随便来一个」这类请求服务端要靠草图猜内容，所以只在命中随便意图时才附图，
+      // 免得每次聊天都往请求里塞几百 KB
+      const casual = detectCasualIntent(content)
+      const context = buildContext() as Record<string, unknown>
+
+      if (casual && store.hasSketch) {
+        const sketch = exportSketch()
+        if (sketch) context.sketch = sketch
+      }
+
       const res = await $fetch<AgentReply>('/api/agent', {
         method: 'POST',
-        body: { text: content, context: buildContext() },
-        // LLM 一次要 5–15 秒，默认超时太短会误判成网络失败
-        timeout: 30000,
+        body: { text: content, context },
+        // 普通请求 5–15 秒；「随便」还要多跑一次 llava 看图，给到 60 秒
+        timeout: casual ? 60000 : 30000,
       })
 
       store.addMessage({ role: 'assistant', content: res.reply })

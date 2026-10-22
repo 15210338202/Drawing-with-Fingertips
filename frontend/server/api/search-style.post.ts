@@ -68,8 +68,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{ query?: unknown, k?: unknown }>(event)
   const query = typeof body?.query === 'string' ? body.query.trim() : ''
 
+  /*
+   * P2-11 之后这个接口的定位变了：
+   * - Agent 聊天不再调它（风格清单已写进 system prompt，由模型直选 id）；
+   * - 它只服务「手动浏览画廊」：query 为空就返回全部风格，score 统一 0。
+   * 带 query 时仍保留原来的词表匹配，作为老入口和调试用。
+   */
   if (!query) {
-    throw createError({ statusCode: 400, statusMessage: 'query 不能为空' })
+    return { results: STYLES.map(style => toResult(style, 0)) }
   }
 
   const k = clampK(body?.k)
@@ -82,23 +88,28 @@ export default defineEventHandler(async (event) => {
     .filter(item => item.score > 0)
     .sort((a, b) => b.score - a.score || a.style.id.localeCompare(b.style.id))
     .slice(0, k)
-    .map(({ style, score }) => ({
-      id: style.id,
-      title: style.title,
-      // 这两个字段透出来是给前端做分组与题材筛选的；themes 另有 0.35 的低权重兜底命中
-      category: style.category,
-      themes: style.themes,
-      // prompt 保留给旧消费方（界面展示、promptOverride），值就是纯画风描述
-      prompt: style.styleModifiers,
-      styleModifiers: style.styleModifiers,
-      contentHints: style.contentHints,
-      // 响应里保留 source，前端要显示"本次参考了：水墨国风（来源：自建）"
-      source: style.source,
-      score,
-    }))
+    .map(({ style, score }) => toResult(style, score))
 
   return { results }
 })
+
+/** 条目 → 响应体。浏览和检索两条路共用，避免字段漏掉一个 */
+function toResult(style: StyleEntry, score: number) {
+  return {
+    id: style.id,
+    title: style.title,
+    // 这两个字段透出来是给前端做分组与题材筛选的；themes 另有 0.35 的低权重兜底命中
+    category: style.category,
+    themes: style.themes,
+    // prompt 保留给旧消费方（界面展示、promptOverride），值就是纯画风描述
+    prompt: style.styleModifiers,
+    styleModifiers: style.styleModifiers,
+    contentHints: style.contentHints,
+    // 响应里保留 source，前端要显示"本次参考了：水墨国风（来源：自建）"
+    source: style.source,
+    score,
+  }
+}
 
 /** k 默认 3、上限 5，防止一次返回太多把风格库撑爆 */
 function clampK(raw: unknown) {

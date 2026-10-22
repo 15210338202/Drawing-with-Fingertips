@@ -32,14 +32,48 @@ const CDN_WASM_PATH = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.
 const LOCAL_BUNDLE_PATH = '/vendor/vision_bundle.js'
 const CDN_BUNDLE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.js'
 
-/** 检测、存在、跟踪三个 confidence 阈值都设 0.5 */
-const CONFIDENCE = 0.5
+/**
+ * R6 三级过滤的第一层：模型侧置信度。
+ *
+ * - detection / presence 从 0.5 提到 0.6：先砍掉低质量的“疑似手”，
+ *   否则第二只手会频繁以半只手的形态闪进闪出，主手最近邻匹配会被带着跳。
+ * - tracking 反而降到 0.4：tracking 掉到 0.6 以下时 MediaPipe 会丢弃上一帧的跟踪状态，
+ *   侧手/快速移动时特别容易“丢手 → 重新检测 → 标签翻转”。放宽它，宁可多跟几帧。
+ */
+const DETECTION_CONFIDENCE = 0.6
+const PRESENCE_CONFIDENCE = 0.6
+const TRACKING_CONFIDENCE = 0.4
 
-/** 归一化的关键点：x、y 在 0–1（z 是相对深度，今天不用） */
+/** 最多同时检测两只手：一只手画画，另一只手留给后续的辅助手势 */
+const MAX_HANDS = 2
+
+/** 归一化的关键点：x、y 在 0–1，z 是相对深度（2D 结果里只用于调试） */
 export interface HandLandmark {
   x: number
   y: number
   z: number
+}
+
+/** MediaPipe 输出的左右手标签；模型给不出时归为 Unknown */
+export type Handedness = 'Left' | 'Right' | 'Unknown'
+
+/**
+ * 一只手的完整结果。
+ *
+ * landmarks      → 2D 归一化坐标。画布、准星、覆盖层、R7 透视校正**只准用它**。
+ * worldLandmarks → 3D 世界坐标（米，原点在手掌中心）。
+ *                  侧手/自遮挡时深度会漂，当前只作诊断，不参与捏合判定；
+ *                  画布、准星、覆盖层仍然只准用 landmarks。
+ */
+export interface DetectedHand {
+  /** 21 个 2D 归一化关键点 */
+  landmarks: HandLandmark[]
+  /** 21 个 3D 世界坐标关键点；模型异常时可能为 null，调用方要兜底 */
+  worldLandmarks: HandLandmark[] | null
+  /** 模型判定的左右手；前端只用它做身份标签，不用于显示语义 */
+  handedness: Handedness
+  /** 左右手分类置信度，主手初始选择时作为第二排序依据 */
+  handednessScore: number
 }
 
 /** 主线程 → Worker */
@@ -51,7 +85,8 @@ export interface DetectRequest {
 /** Worker → 主线程 */
 export type WorkerResponse =
   | { type: 'ready' }
-  | { type: 'result', landmarks: HandLandmark[] | null }
+  /** 这一帧检测到的所有手（0–2 只），按 MediaPipe 的输出顺序 */
+  | { type: 'result', hands: DetectedHand[] }
   | { type: 'error', message: string }
 
 /** MediaPipe 传统脚本版挂出来的全局对象，类型直接借用 npm 包的声明 */
@@ -122,11 +157,53 @@ function optionsWith(delegate: 'GPU' | 'CPU') {
   return {
     baseOptions: { modelAssetPath: MODEL_PATH, delegate },
     runningMode: 'VIDEO' as const,
-    numHands: 1,
-    minHandDetectionConfidence: CONFIDENCE,
-    minHandPresenceConfidence: CONFIDENCE,
-    minTrackingConfidence: CONFIDENCE,
+    // 关键：从 1 改成 2。双手模式下推理耗时会上涨，
+    // 但主线程的 latest-wins 单槽会自然把有效帧率稳定在 Worker 的吞吐上。
+    numHands: MAX_HANDS,
+    minHandDetectionConfidence: DETECTION_CONFIDENCE,
+    minHandPresenceConfidence: PRESENCE_CONFIDENCE,
+    minTrackingConfidence: TRACKING_CONFIDENCE,
   }
+}
+
+/** MediaPipe 的 categoryName 是 string，这里收窄成前端约定的三种值 */
+function normalizeHandedness(name: string | undefined): Handedness {
+  return name === 'Left' || name === 'Right' ? name : 'Unknown'
+}
+
+/**
+ * 把一帧的 MediaPipe 结果整理成主线程需要的结构。
+ *
+ * 注意 handedness 字段：新版包同时提供 `handedness`（推荐）和 `handednesses`（已废弃）。
+ * 这里优先用新字段，再退回旧字段，避免 CDN 上不同小版本之间出现 undefined。
+ */
+function toDetectedHands(result: {
+  landmarks?: HandLandmark[][]
+  worldLandmarks?: HandLandmark[][]
+  handedness?: { categoryName: string, score: number }[][]
+  handednesses?: { categoryName: string, score: number }[][]
+}): DetectedHand[] {
+  const hands: DetectedHand[] = []
+  const landmarksList = result.landmarks ?? []
+  const worldList = result.worldLandmarks ?? []
+  const categoriesList = result.handedness ?? result.handednesses ?? []
+
+  for (let index = 0; index < landmarksList.length; index++) {
+    const landmarks = landmarksList[index]
+    // 正常一定是 21 个点；残缺结果直接丢，免得下游数组越界读到半个手掌
+    if (!landmarks || landmarks.length < 21) continue
+
+    const category = categoriesList[index]?.[0]
+
+    hands.push({
+      landmarks,
+      worldLandmarks: worldList[index] ?? null,
+      handedness: normalizeHandedness(category?.categoryName),
+      handednessScore: category?.score ?? 0,
+    })
+  }
+
+  return hands
 }
 
 /** Worker 一启动就加载模型，好了主动通知主线程 */
@@ -164,8 +241,10 @@ workerScope.onmessage = (event) => {
     lastTimestamp = Math.max(timestamp, lastTimestamp + 1)
 
     const result = landmarker.detectForVideo(imageBitmap, lastTimestamp)
-    // 今天只识别一只手，固定取第 0 只
-    post({ type: 'result', landmarks: result.landmarks?.[0] ?? null })
+
+    // R3 + R4：2D 给画布/准星/捏合，3D 只作诊断，handedness 给主手身份维持。
+    // 没检测到手时也回一个空数组 —— 主线程靠这一帧做「丢手」计时。
+    post({ type: 'result', hands: toDetectedHands(result) })
   } catch (err) {
     post({ type: 'error', message: `推理失败：${errorText(err)}` })
   } finally {
