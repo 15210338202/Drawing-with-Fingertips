@@ -31,55 +31,18 @@
         aria-hidden="true"
       />
 
-      <!-- 生成结果：先盖在上面给用户看，点「贴回画布」才真正画进去 -->
-      <div
-        v-if="agent.generatedImage"
-        class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 p-4"
-      >
-        <img
-          :src="agent.generatedImage"
-          alt="生成结果"
-          class="max-h-[75%] max-w-full rounded object-contain"
-        />
-
-        <p v-if="pasteError" class="max-w-full text-center text-xs text-amber-300">{{ pasteError }}</p>
-
-        <div class="flex flex-wrap justify-center gap-2">
-          <button
-            class="rounded-lg bg-sage px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            :disabled="savingCard"
-            @click="saveStoryCard"
-          >
-            {{ savingCard ? '制作中...' : '保存故事卡' }}
-          </button>
-          <button
-            class="rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            :disabled="pasting"
-            @click="pasteGenerated"
-          >
-            {{ pasting ? '贴回中...' : '贴回画布' }}
-          </button>
-          <button
-            class="rounded border border-white/60 px-3 py-1 text-sm text-white"
-            @click="closeGenerated"
-          >
-            关闭
-          </button>
-        </div>
-      </div>
-
       <!-- 10 秒没有新笔画才出现；不自动消失，避免用户还没看清就没了 -->
       <Transition name="fade-up">
         <div
           v-if="showSuggestion"
-          class="absolute bottom-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-blue-100 bg-white/95 px-4 py-2.5 shadow-xl backdrop-blur"
+          class="absolute bottom-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-line bg-surface/95 px-4 py-2.5 shadow-xl backdrop-blur"
           role="status"
           aria-live="polite"
         >
           <span class="text-xl" aria-hidden="true">✨</span>
-          <span class="text-sm font-medium text-gray-700">需要我帮你把这幅画变成艺术品吗？</span>
+          <span class="text-sm font-medium text-ink">需要我帮你把这幅画变成艺术品吗？</span>
           <button
-            class="rounded-full px-2 py-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            class="rounded-full px-2 py-1 text-xs text-muted transition-colors hover:bg-surface-2 hover:text-ink"
             @click="dismissSuggestion"
           >
             暂不
@@ -103,9 +66,11 @@
       </div>
     </div>
 
+    <p v-if="pasteError" class="mt-2 text-xs leading-5 text-danger">{{ pasteError }}</p>
+
     <!-- 共情式解读（P2-10）：看图 → 讲成温柔的话。
          两次大模型调用（llava ~17s + DeepSeek 3～8s），所以 loading 文案要说清在等什么。 -->
-    <div class="mt-3 rounded border p-3">
+    <div class="mt-3 rounded-2xl border border-line bg-surface-2/50 p-3">
       <div class="flex flex-wrap items-center gap-2">
         <button
           class="rounded-lg bg-sage px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
@@ -121,7 +86,7 @@
             v-for="item in INSIGHT_TONES"
             :key="item.key"
             class="rounded-full border px-2 py-0.5 text-xs"
-            :class="tone === item.key ? 'border-purple-400 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600'"
+            :class="tone === item.key ? 'border-sage bg-sage-soft text-sage-strong' : 'border-line text-muted hover:bg-surface-2'"
             :title="item.hint"
             @click="switchTone(item.key)"
           >
@@ -132,17 +97,17 @@
 
       <p v-if="insightError" class="mt-2 text-xs text-amber-600">{{ insightError }}</p>
 
-      <div v-if="insight" class="mt-3 space-y-1 rounded bg-gray-50 p-3 text-sm text-gray-800">
+      <div v-if="insight" class="mt-3 space-y-1 rounded-xl border border-line bg-surface p-3 text-sm text-ink">
         <p><span class="font-semibold">它看到了：</span>{{ insight.observation }}</p>
         <p><span class="font-semibold">它感觉到：</span>{{ insight.feeling }}</p>
         <p><span class="font-semibold">想问问你：</span>{{ insight.invitation }}</p>
 
         <div class="flex flex-wrap items-center gap-2 pt-1">
-          <span class="text-xs text-gray-500">试试这样画：</span>
+          <span class="text-xs text-muted">试试这样画：</span>
           <button
             v-for="item in insight.suggestions"
             :key="item"
-            class="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-100"
+            class="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-ink transition-colors hover:bg-surface-2"
             :title="`检索「${item}」相关风格`"
             @click="pickSuggestion(item)"
           >
@@ -150,7 +115,7 @@
           </button>
         </div>
 
-        <p v-if="insight.degrade && insight.degrade !== 'none'" class="pt-1 text-[11px] text-gray-400">
+        <p v-if="insight.degrade && insight.degrade !== 'none'" class="pt-1 text-[11px] text-muted">
           （{{ degradeText }}）
         </p>
       </div>
@@ -401,12 +366,16 @@ const insight = ref<(Insight & { degrade?: string, keywords?: string, costMs?: n
 const insightError = ref('')
 const tone = ref<InsightToneKey>(DEFAULT_TONE)
 
+const currentStyleTitle = computed(() =>
+  agent.styleResults.find(item => item.id === agent.lastStyleKey)?.title ?? '自由创作',
+)
+
 /**
  * 故事卡底部的正文：
- * 有 AI 解读时优先用解读（它真的看过画），但压成 1–2 句，避免卡片被长文撑满；
+ * 有 AI 解读时优先用解读（它真的看过画），但压成 1–2 句，并把当前风格的语气并进第一句；
  * 没有解读时不要写死一句，交给 buildStoryCaption 按画面特征 + 风格现编。
  */
-const insightStoryText = computed(() => condenseInsight(insight.value))
+const insightStoryText = computed(() => condenseInsight(insight.value, currentStyleTitle.value))
 
 // ===== 10 秒空闲：邀请生图 =====
 const IDLE_SUGGESTION_MS = 10_000
@@ -634,26 +603,21 @@ function describeInsightError(err: unknown) {
     ?? '解读失败，请稍后再试'
 }
 
-/** 关掉生成结果浮层，画布保持原样 */
-function closeGenerated() {
-  pasteError.value = ''
-  agent.setGeneratedImage(null)
-}
-
 /**
  * 保存作品故事卡。
  *
  * 草图用画布原始 toDataURL，而不是送模型的 exportSketch：
  * exportSketch 会裁白边 + 二值化，适合模型识别，但会把孩子的颜色弄丢。
  */
-async function saveStoryCard() {
-  if (savingCard.value) return
+async function saveStoryCard(): Promise<boolean> {
+  // 连点保存时直接视为已处理，避免第二次调用把第一次的成功误报成失败。
+  if (savingCard.value) return true
 
   const generated = agent.generatedImage
   const canvas = canvasEl.value
   if (!generated || !canvas) {
     pasteError.value = '还没有可保存的作品'
-    return
+    return false
   }
 
   savingCard.value = true
@@ -661,16 +625,17 @@ async function saveStoryCard() {
 
   try {
     const sketch = canvas.toDataURL('image/png')
-    const style = agent.styleResults.find(item => item.id === agent.lastStyleKey)
-    const styleTitle = style?.title ?? '自由创作'
+    const styleTitle = currentStyleTitle.value
     // 没有 AI 解读时，按画面留白/冷暖/风格现编一句；不再固定成同一句。
     const aiText = insightStoryText.value || buildStoryCaption(canvas, styleTitle)
 
     await generateStoryCard(sketch, generated, aiText, styleTitle)
+    return true
   }
   catch (err) {
     console.error('[canvas] 故事卡导出失败：', err)
     pasteError.value = `故事卡导出失败：${(err as Error)?.message ?? '请重试'}`
+    return false
   }
   finally {
     savingCard.value = false
@@ -681,10 +646,10 @@ async function saveStoryCard() {
  * 把生成图贴回画布。
  * 贴上去是 drawImage 而不是替换画布，用户之后还能继续在上面画。
  */
-async function pasteGenerated() {
+async function pasteGenerated(): Promise<boolean> {
   const src = agent.generatedImage
   const canvas = canvasEl.value
-  if (!src || !ctx || !canvas) return
+  if (!src || !ctx || !canvas) return false
 
   pasting.value = true
   pasteError.value = ''
@@ -704,9 +669,11 @@ async function pasteGenerated() {
     suggestionDismissed.value = true
     hideSuggestion()
     agent.setGeneratedImage(null)
+    return true
   } catch (err) {
     console.error('[canvas] 贴回失败：', err)
     pasteError.value = '这张图贴不进画布（多半是跨域限制），可以先右键另存，或让服务端转存后再试'
+    return false
   } finally {
     pasting.value = false
   }
@@ -886,7 +853,7 @@ function clear() {
   agent.setHasSketch(false)
 }
 
-defineExpose({ clear, exportSketch })
+defineExpose({ clear, exportSketch, saveStoryCard, pasteGenerated })
 </script>
 
 <style scoped>

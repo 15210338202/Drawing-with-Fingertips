@@ -27,6 +27,29 @@
       </div>
 
       <button
+        v-if="hasArtwork"
+        type="button"
+        class="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-sage/20 bg-sage-soft px-3 text-left text-sm font-medium text-sage-strong transition-colors hover:bg-sage-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/30"
+        @click="emit('view')"
+      >
+        <svg
+          class="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <circle cx="8.5" cy="9" r="1.5" />
+          <path d="m21 15-5-5L5 20" />
+        </svg>
+        查看作品
+      </button>
+
+      <button
         type="button"
         class="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-line bg-surface px-3 text-left text-sm font-medium text-ink transition-colors hover:border-danger/30 hover:bg-danger/5 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30"
         @click="emit('clear')"
@@ -83,5 +106,6 @@
 </template>
 
 <script setup lang="ts">
-const emit = defineEmits<{ clear: [] }>()
+withDefaults(defineProps<{ hasArtwork?: boolean }>(), { hasArtwork: false })
+const emit = defineEmits<{ clear: []; view: [] }>()
 </script>

@@ -6,7 +6,7 @@
 
     <!-- 消息列表：固定高度 + 可滚动，新内容进来自动滚到底 -->
     <div ref="listEl" class="space-y-2 overflow-y-auto text-sm" :class="embedded ? 'h-64' : 'h-48'">
-      <p v-if="!store.messages.length" class="text-gray-400">
+      <p v-if="!store.messages.length" class="text-muted/80">
         说点什么，比如「这个草图适合什么风格」
       </p>
 
@@ -22,7 +22,7 @@
         <!-- 流式回答刚开始、还没吐出字时给个光标，让用户知道在生成 -->
         <span
           v-if="store.streaming && index === store.messages.length - 1 && !message.content"
-          class="ml-1 animate-pulse text-gray-400"
+          class="ml-1 animate-pulse text-muted/80"
         >▍</span>
       </div>
     </div>
@@ -74,11 +74,11 @@
     </div>
 
     <!-- 语音状态与提示：链路切换、录音中、识别中、失败原因 -->
-    <p v-if="voiceNotice" class="text-xs text-blue-600">{{ voiceNotice }}</p>
-    <p v-if="recording" class="text-xs text-red-600">
+    <p v-if="voiceNotice" class="text-xs text-sage-strong">{{ voiceNotice }}</p>
+    <p v-if="recording" class="text-xs text-danger">
       录音中 {{ recordElapsed.toFixed(1) }}s · 说完停一下会自动结束（也可再点麦克风）
     </p>
-    <p v-if="transcribing" class="text-xs text-gray-500">识别中…</p>
+    <p v-if="transcribing" class="text-xs text-muted">识别中…</p>
     <p v-if="speechError" class="text-xs text-amber-600">{{ speechError }}</p>
 
     <div class="flex gap-2">
@@ -105,7 +105,7 @@
       <!-- 只有正在流式接收时才出现 -->
       <button
         v-if="store.streaming"
-        class="rounded bg-red-500 px-3 py-1 text-white"
+        class="rounded-full border border-line bg-surface-2 px-3 py-1 text-danger transition-colors hover:bg-line/50"
         @click="stop"
       >
         停止

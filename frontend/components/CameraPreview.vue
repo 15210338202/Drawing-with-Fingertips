@@ -5,8 +5,8 @@
     <!-- 预览区域：宽高比跟随真实画幅（而不是写死 4:3），否则 object-contain 会加黑边、
          红点和关键点覆盖层就跟画面内容错位 -->
     <div
-      class="relative mt-2 flex w-full items-center justify-center overflow-hidden rounded bg-gray-200 transition-shadow duration-200"
-      :class="thumbsUpFlash ? 'ring-4 ring-emerald-400' : ''"
+      class="relative mt-2 flex w-full items-center justify-center overflow-hidden rounded bg-surface-2 transition-shadow duration-200"
+      :class="thumbsUpFlash ? 'ring-4 ring-sage/40' : ''"
       :style="{ aspectRatio: String(gesture.cameraAspect || 4 / 3) }"
     >
       <!-- 画面镜像：摄像头看到的是"对面的人"，不镜像时用户往右挥手、画面里往左动，
@@ -44,21 +44,21 @@
           <div
             class="h-6 w-6 rounded-full border-2 border-white transition-transform duration-150"
             :class="[
-              index < capturedCount ? 'scale-125 bg-green-500' : 'bg-red-500',
-              index === activeTarget && index >= capturedCount ? 'scale-150 ring-4 ring-red-300' : '',
+              index < capturedCount ? 'scale-125 bg-sage' : 'bg-peach',
+              index === activeTarget && index >= capturedCount ? 'scale-150 ring-4 ring-sage/25' : '',
             ]"
           />
           <!-- 停留进度：宽度 500ms 线性变化，正好对上 DWELL_MS，不需要每帧算 -->
           <div v-if="index === activeTarget && index >= capturedCount" class="mt-1 h-0.5 w-6 overflow-hidden rounded bg-white/40">
             <div
-              class="h-full bg-green-400 transition-[width] duration-500 ease-linear"
+              class="h-full bg-sage transition-[width] duration-500 ease-linear"
               :class="dwellActive ? 'w-full' : 'w-0'"
             />
           </div>
         </div>
 
         <div class="pointer-events-none absolute inset-x-0 bottom-2 text-center text-xs font-medium text-white drop-shadow">
-          把食指移到红点上停半秒，依次完成 4 个点（{{ capturedCount }}/4）
+          把食指移到圆点上停半秒，依次完成 4 个点（{{ capturedCount }}/4）
         </div>
       </template>
 
@@ -80,7 +80,7 @@
 
       <p
         v-if="errorMessage"
-        class="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-red-600 bg-gray-200"
+        class="absolute inset-0 flex items-center justify-center bg-surface-2 px-4 text-center text-sm text-danger"
       >
         {{ errorMessage }}
       </p>
@@ -106,18 +106,18 @@
         关闭摄像头
       </button>
 
-      <span v-if="isActive && !ready && !statusError" class="text-sm text-gray-500">手部模型加载中…</span>
-      <span v-else-if="isActive && ready" class="text-sm text-green-600">
+      <span v-if="isActive && !ready && !statusError" class="text-sm text-muted">手部模型加载中…</span>
+      <span v-else-if="isActive && ready" class="text-sm text-sage">
         {{ hands.length === 0 ? '未检测到手' : hands.length > 1 ? `已识别到 ${hands.length} 只手（自动锁定主手）` : '已识别到手' }}
       </span>
 
       <!-- 手势状态：调滑杆的时候靠它确认到底有没有判定成捏合 -->
-      <span v-if="isActive && ready && landmarks" class="text-sm" :class="gestureState === 'drawing' ? 'text-blue-600' : 'text-gray-500'">
+      <span v-if="isActive && ready && landmarks" class="text-sm" :class="gestureState === 'drawing' ? 'text-sage' : 'text-muted'">
         {{ gestureState === 'drawing' ? '绘制中（已捏合）' : '待机：捏合画，握拳清空，👍 生成' }}
       </span>
 
       <!-- 状态机确认前就先给个提示，用户能知道“比对了、再保持一下” -->
-      <span v-if="isActive && ready && thumbsUp" class="text-sm text-emerald-600">
+      <span v-if="isActive && ready && thumbsUp" class="text-sm text-sage-strong">
         👍 已识别，保持一下…
       </span>
 
@@ -126,31 +126,31 @@
            点了完全没反应，看起来像坏了。标定本身允许先点开、再把手放回画面。 -->
       <button
         v-if="isActive && ready && !calibrating"
-        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+        class="rounded-full border border-line bg-surface px-3 py-1 text-sm text-ink transition-colors hover:bg-surface-2"
         @click="startCalibration"
       >
         标定
       </button>
       <button
         v-if="calibrating"
-        class="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+        class="rounded-full border border-line bg-surface px-3 py-1 text-sm text-ink transition-colors hover:bg-surface-2"
         @click="cancelCalibration"
       >
         取消标定
       </button>
       <!-- 标定中的即时反馈：能看出「点击生效了没有」以及「系统当前认不认得到手」，
            这两条正好覆盖「点了没反应」的两种最常见原因 -->
-      <span v-if="calibrating" class="text-sm text-blue-600">
+      <span v-if="calibrating" class="text-sm text-sage">
         标定中 {{ Math.min(capturedCount + 1, 4) }}/4 · {{ landmarks ? '已识别到手' : '未检测到手' }}
       </span>
       <template v-if="calibration.calibrated && !calibrating">
-        <span class="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">已标定</span>
-        <button class="text-xs text-gray-500 underline" @click="clearCalibration">清除标定</button>
+        <span class="rounded-full bg-sage-soft px-2 py-1 text-xs text-sage-strong">已标定</span>
+        <button class="text-xs text-muted underline" @click="clearCalibration">清除标定</button>
       </template>
     </div>
 
     <!-- 标定失败/成功的提示 -->
-    <p v-if="calibrationError" class="mt-2 text-sm text-red-600">{{ calibrationError }}</p>
+    <p v-if="calibrationError" class="mt-2 text-sm text-danger">{{ calibrationError }}</p>
   </div>
 </template>
 
@@ -267,10 +267,10 @@ let thumbsUpNoticeTimer: ReturnType<typeof setTimeout> | null = null
 let thumbsUpFlashTimer: ReturnType<typeof setTimeout> | null = null
 
 const thumbsUpNoticeClass = computed(() => ({
-  info: 'bg-gray-900/80',
-  success: 'bg-emerald-600/90',
+  info: 'bg-ink/85',
+  success: 'bg-sage/95',
   warn: 'bg-amber-500/90',
-  error: 'bg-red-600/90',
+  error: 'bg-danger/90',
 }[thumbsUpNoticeTone.value]))
 
 /** 提示文字太长会把预览遮住，截断到 80 字；完整原因仍可在 console 看 */

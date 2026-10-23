@@ -2,7 +2,7 @@
   <div :class="embedded ? 'w-full' : 'w-[360px] rounded-card border border-line bg-surface p-4 shadow-soft'">
     <h2 v-if="!embedded" class="font-semibold">风格库</h2>
 
-    <p v-if="!store.styleResults.length" class="mt-2 text-sm text-gray-400">
+    <p v-if="!store.styleResults.length" class="mt-2 text-sm text-muted">
       风格清单加载中…也可以直接跟 AI 说「把它变成国风」
     </p>
 

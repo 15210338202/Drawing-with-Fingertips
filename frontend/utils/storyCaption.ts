@@ -11,7 +11,7 @@
 
 import type { Insight } from '~/utils/insight'
 
-type Tone = 'ink' | 'soft' | 'paint' | 'future' | 'warm'
+type Tone = 'ink' | 'soft' | 'paint' | 'future' | 'pixel' | 'collage' | 'dream' | 'minimal' | 'folk' | 'warm'
 type Density = 'sparse' | 'medium' | 'rich' | 'full'
 type ColorMood = 'mono' | 'warm' | 'cool' | 'vivid' | 'quiet'
 
@@ -23,11 +23,17 @@ interface VisualStats {
 const DEFAULT_CAPTION = '这幅画里，藏着你此刻的小小心情。'
 
 const STYLE_TONE_RULES: Array<[RegExp, Tone]> = [
+  [/像素|复古|pixel|8-?bit|16-?bit/i, 'pixel'],
+  [/拼贴|剪纸|波普|立体|collage|pop/i, 'collage'],
+  [/梦幻|梦核|星空|dream/i, 'dream'],
+  [/极简|线稿|minimal|line art/i, 'minimal'],
   [/水墨|国风|工笔|青绿|山水|书法|ink|sumi/i, 'ink'],
-  [/日系|动画|绘本|治愈|水彩|清新|温柔|anime|illustration/i, 'soft'],
-  [/油画|印象|厚涂|梵高|莫奈|oil|impression/i, 'paint'],
+  [/日系|动画|绘本|治愈|水彩|清新|温柔|儿童|蜡笔|anime|illustration/i, 'soft'],
+  [/油画|印象|厚涂|古典|点彩|抽象|流体|oil|impression/i, 'paint'],
   [/赛博|未来|科幻|霓虹|机械|cyber|future|neon/i, 'future'],
+  [/脸谱|年画|民俗|烟火|folk|opera/i, 'folk'],
 ]
+
 
 const OPENINGS: Record<Tone, string[]> = {
   ink: [
@@ -54,12 +60,105 @@ const OPENINGS: Record<Tone, string[]> = {
     '画面像一扇刚打开的门。',
     '这里的时间，好像走得比别处快一点。',
   ],
+  pixel: [
+    '像从旧游戏里截下的一帧。',
+    '颜色被压成小小的方块，反而有了秩序。',
+    '画面带着一点旧屏幕的温度。',
+  ],
+  collage: [
+    '纸片没有排好队，反而有了自己的节奏。',
+    '剪过的边缘，让画面多了一点手作的声音。',
+    '颜色块面挨在一起，像在说悄悄话。',
+  ],
+  dream: [
+    '像从一个还没醒的梦里，轻轻借来一点光。',
+    '画面有点失焦，却刚好让人想走进去。',
+    '颜色在边缘化开，像梦到一半的地方。',
+  ],
+  minimal: [
+    '线条很少，每一笔都很确定。',
+    '画面没有多余的话，反而更安静。',
+    '一笔停下来，空白就开始说话。',
+  ],
+  folk: [
+    '颜色有戏，像台上有锣鼓刚刚敲过。',
+    '脸谱和色块都带着一点舞台的光。',
+    '画面热热闹闹，却不吵。',
+  ],
   warm: [
     '画里有一种不慌不忙的温柔。',
     '线条走到这里，刚好停在一个舒服的地方。',
     '看着这幅画，像听见一句轻轻的呼吸。',
     '画面不大，却装下了一个小世界。',
   ],
+}
+
+/**
+ * 每种风格专属的视觉落点。
+ *
+ * 它不替代留白/颜色统计，而是把“风格”放在句子最靠前的位置：
+ * 先让人听见这个风格该有的语气，再用画面统计补细节。
+ */
+const STYLE_DESCRIPTORS: Record<Tone, string[]> = {
+  ink: [
+    '宣纸上的墨色有浓有淡，',
+    '笔锋走过的地方，还留着一点呼吸，',
+  ],
+  soft: [
+    '线条像被奶油和阳光轻轻包住，',
+    '颜色软软地挨在一起，',
+  ],
+  paint: [
+    '颜料堆出一点厚度，',
+    '笔触没有急着抹平，',
+  ],
+  future: [
+    '光从暗处慢慢透出来，',
+    '颜色带着一点金属的凉意，',
+  ],
+  pixel: [
+    '色块边缘利落，像一格一格拼起来的，',
+    '颜色被收进有限的几档里，',
+  ],
+  collage: [
+    '纸片边缘留着剪过的痕迹，',
+    '不同的材质碰在一起，',
+  ],
+  dream: [
+    '光晕软软地散开，',
+    '边界不太清楚，像隔着一层雾，',
+  ],
+  minimal: [
+    '没有多余的装饰，',
+    '每一根线都落在该在的位置，',
+  ],
+  folk: [
+    '颜色浓淡分明，像一笔一笔画上去的，',
+    '色块有板有眼，带着一点舞台的腔调，',
+  ],
+  warm: [
+    '纸面上的颜色不争不抢，',
+    '线条和色块慢慢靠在一起，',
+  ],
+}
+
+const STYLE_DESCRIPTOR_OVERRIDES: Array<[RegExp, string[]]> = [
+  [/青绿|山水/, ['青绿在山脊上慢慢铺开，']],
+  [/水彩|治愈/, ['水色在纸边慢慢化开，']],
+  [/绘本|蜡笔/, ['蜡笔的颗粒留在纸面上，']],
+  [/儿童|涂鸦/, ['线条歪歪扭扭，却很有自己的主意，']],
+  [/古典|肖像/, ['暗部的光一点点浮出来，']],
+  [/星空|梦幻/, ['星屑一样的光点散在边上，']],
+  [/赛博|霓虹/, ['霓虹把边缘照得有点发亮，']],
+  [/年画|剪纸|波普/, ['剪刀和色块都留下了手作的边，']],
+  [/像素/, ['像素块边缘像旧屏幕的扫描线，']],
+]
+
+function pickStyleDescriptor(styleTitle: string, tone: Tone, random: () => number): string {
+  for (const [pattern, descriptors] of STYLE_DESCRIPTOR_OVERRIDES) {
+    if (pattern.test(styleTitle)) return pick(descriptors, random)
+  }
+  return pick(STYLE_DESCRIPTORS[tone], random)
 }
 
 const DENSITY_PHRASES: Record<Density, string[]> = {
@@ -120,7 +219,7 @@ const COLOR_PHRASES: Record<ColorMood, string[]> = {
 const CLOSINGS: Record<Tone, string[]> = {
   ink: [
     '剩下的故事，就交给看画的人慢慢想。',
-    '意已经在那里了。',
+    '余下的意思，留给看画的人慢慢体会。',
     '像一封没写完的信，停在最有余味的地方。',
   ],
   soft: [
@@ -138,10 +237,30 @@ const CLOSINGS: Record<Tone, string[]> = {
     '故事也许才刚开始。',
     '画面之外，还有更大的世界。',
   ],
+  pixel: [
+    '像素的边缘，替画面留住了时间。',
+    '像一条还没通关的路，停在最想继续的地方。',
+  ],
+  collage: [
+    '拼贴的缝隙里，也藏着一点小心思。',
+    '像把几段不同的心情，贴成了同一个下午。',
+  ],
+  dream: [
+    '梦没有说完，画面先替它留住了颜色。',
+    '再往里走一点，也许还能遇见别的什么。',
+  ],
+  minimal: [
+    '画面把该说的，都留在了空白里。',
+    '简单不是少，是刚刚好。',
+  ],
+  folk: [
+    '像一场还没谢幕的戏，余音还在。',
+    '热闹过后，颜色还留在台中央。',
+  ],
   warm: [
     '它不需要解释，已经很像你了。',
     '愿看画的人，也能接住这一点温柔。',
-    '这幅画里，藏着你此刻的小小心情。',
+    '这份心情，已经留在纸上了。',
   ],
 }
 
@@ -310,19 +429,34 @@ function pickFirstPhrase(value: string | undefined, max: number): string {
  */
 export function condenseInsight(
   insight: Pick<Insight, 'observation' | 'feeling' | 'invitation'> | null | undefined,
+  styleTitle = '',
 ): string {
   if (!insight) return ''
 
-  const observation = pickFirstPhrase(insight.observation, 40)
-  const feeling = pickFirstPhrase(insight.feeling, 34)
+  // AI 解读负责“看到了什么”，风格词负责“用什么语气看”。
+  // 把风格前缀并进第一句，而不是再加一句，避免卡片变长。
+  const styleLead = styleTitle
+    ? pickStyleDescriptor(styleTitle, resolveTone(styleTitle), createRandom(hashString(styleTitle)))
+    : ''
+
+  const observation = pickFirstPhrase(insight.observation, styleLead ? 30 : 40)
+  const feeling = pickFirstPhrase(insight.feeling, styleLead ? 26 : 34)
   const invitation = pickFirstPhrase(insight.invitation, 30)
 
   const parts: string[] = []
-  if (observation) parts.push(observation)
+  const firstBody = observation || feeling
 
-  const normalizedObservation = observation.replace(/[。！？!?，,；;\s]/g, '')
-  const normalizedFeeling = feeling.replace(/[。！？!?，,；;\s]/g, '')
-  if (feeling && normalizedFeeling !== normalizedObservation) parts.push(feeling)
+  if (firstBody) {
+    parts.push(styleLead ? `${styleLead}${firstBody}` : firstBody)
+    if (observation && feeling) {
+      const normalizedObservation = observation.replace(/[。！？!?，,；;\s]/g, '')
+      const normalizedFeeling = feeling.replace(/[。！？!?，,；;\s]/g, '')
+      if (normalizedFeeling !== normalizedObservation) parts.push(feeling)
+    }
+  }
+  else if (styleLead) {
+    parts.push(styleLead.replace(/[，,]\s*$/, ''))
+  }
 
   if (parts.length < 2 && invitation) {
     const normalizedInvitation = invitation.replace(/[。！？!?，,；;\s]/g, '')
@@ -360,7 +494,8 @@ export function buildStoryCaption(
   const random = createRandom(seed)
 
   const opening = pick(OPENINGS[tone], random)
-  const visual = `${pick(DENSITY_PHRASES[stats.density], random)}${pick(COLOR_PHRASES[stats.color], random)}`
+  const descriptor = pickStyleDescriptor(styleTitle, tone, random)
+  const visual = `${descriptor}${pick(DENSITY_PHRASES[stats.density], random)}${pick(COLOR_PHRASES[stats.color], random)}`
   const closing = pick(CLOSINGS[tone], random)
 
   return `${opening}${visual}${closing}`
