@@ -60,6 +60,40 @@
           </button>
         </div>
       </div>
+
+      <!-- 10 秒没有新笔画才出现；不自动消失，避免用户还没看清就没了 -->
+      <Transition name="fade-up">
+        <div
+          v-if="showSuggestion"
+          class="absolute bottom-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-blue-100 bg-white/95 px-4 py-2.5 shadow-xl backdrop-blur"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="text-xl" aria-hidden="true">✨</span>
+          <span class="text-sm font-medium text-gray-700">需要我帮你把这幅画变成艺术品吗？</span>
+          <button
+            class="rounded-full px-2 py-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            @click="dismissSuggestion"
+          >
+            暂不
+          </button>
+          <button
+            class="rounded-full bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
+            :disabled="agent.isGenerating"
+            @click="triggerSuggestionGenerate"
+          >
+            好呀
+          </button>
+        </div>
+      </Transition>
+
+      <!-- 生成失败/兜底提示；成功时画布上会出现“贴回画布”浮层，不再额外弹提示 -->
+      <div
+        v-if="suggestionNotice"
+        class="absolute left-1/2 top-2 z-40 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-full bg-amber-500/95 px-3 py-1 text-center text-xs text-white shadow-lg"
+      >
+        {{ suggestionNotice }}
+      </div>
     </div>
 
     <!-- 共情式解读（P2-10）：看图 → 讲成温柔的话。
@@ -349,13 +383,148 @@ function binarizeStrokes(pixels: Uint8ClampedArray) {
 
 // ===== 共情式解读（P2-10）=====
 const { runAction } = useAgent()
-const { speak } = useTTS()
+const { speak, stop: stopSpeaking } = useTTS()
 
 const analyzing = ref(false)
 /** 解读结果；degrade 表示哪一级模型降级了 */
 const insight = ref<(Insight & { degrade?: string, keywords?: string, costMs?: number }) | null>(null)
 const insightError = ref('')
 const tone = ref<InsightToneKey>(DEFAULT_TONE)
+
+// ===== 10 秒空闲：邀请生图 =====
+const IDLE_SUGGESTION_MS = 10_000
+/** 是否显示邀请气泡 */
+const showSuggestion = ref(false)
+/**
+ * 这一版画是否已经提示过/处理过。
+ * 用户点“暂不”、点“好呀”、或生成被别处触发后置 true；再次落笔才清零，
+ * 所以同一张画停着不动不会反复弹，也不会反复念。
+ */
+const suggestionDismissed = ref(false)
+/** 生成失败/兜底时的一句提示 */
+const suggestionNotice = ref('')
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+let suggestionNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+}
+
+function hideSuggestion() {
+  showSuggestion.value = false
+  clearIdleTimer()
+}
+
+function showSuggestionNotice(text: string) {
+  suggestionNotice.value = text.length > 72 ? `${text.slice(0, 72)}…` : text
+  if (suggestionNoticeTimer) clearTimeout(suggestionNoticeTimer)
+  suggestionNoticeTimer = setTimeout(() => {
+    suggestionNotice.value = ''
+  }, 6000)
+}
+
+/**
+ * 重置空闲计时器。
+ *
+ * 空画布、正在生图、这一版已经提示过，都不启动计时。
+ * 只要用户还在落笔，这个函数就会被 lastStrokeTime 的 watch 反复调用，
+ * 所以 10 秒是从“最后一段笔迹”开始算，而不是从起笔开始算。
+ */
+function resetIdleTimer() {
+  const wasVisible = showSuggestion.value
+  hideSuggestion()
+
+  // 用户一动笔，就把没念完的邀请打断，别让气泡和笔迹抢注意力
+  if (wasVisible) stopSpeaking()
+
+  if (!agent.hasSketch || agent.isGenerating || suggestionDismissed.value) return
+  if (agent.loading || agent.streaming || agent.executing) return
+
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+
+    if (!agent.hasSketch || agent.isGenerating || suggestionDismissed.value) return
+    if (agent.loading || agent.streaming || agent.executing) return
+
+    // 先标记再显示：气泡不自动消失，用户没点“暂不”也不会在下一轮重复弹/重复念
+    suggestionDismissed.value = true
+    showSuggestion.value = true
+    speak('你画好啦？需要我帮你变个魔法吗？')
+  }, IDLE_SUGGESTION_MS)
+}
+
+function dismissSuggestion() {
+  suggestionDismissed.value = true
+  hideSuggestion()
+  stopSpeaking()
+}
+
+/** 用当前/上次风格直接生图；失败只显示一句话，成功走画布上的“贴回画布”浮层 */
+async function triggerSuggestionGenerate() {
+  if (agent.isGenerating) return
+  if (agent.loading || agent.streaming || agent.executing) {
+    showSuggestionNotice('AI 正在忙，稍等一下再生成')
+    return
+  }
+
+  const style = agent.styleResults.find(item => item.id === agent.lastStyleKey)
+    ?? agent.styleResults[0]
+    ?? null
+
+  suggestionDismissed.value = true
+  hideSuggestion()
+
+  // 把邀请语收掉，换成“马上做”的确认；不打断的话两句会叠在一起
+  speak('好嘞，马上为你变魔法！')
+
+  try {
+    const message = await runAction({
+      tool: 'generate_image',
+      args: {
+        styleKey: style?.id ?? '',
+        strength: 0.6,
+      },
+    })
+
+    if (!message.startsWith('生成完成')) showSuggestionNotice(message)
+  }
+  catch (err) {
+    showSuggestionNotice(`生成失败：${(err as Error)?.message ?? String(err)}`)
+  }
+}
+
+// 每落一笔都重排计时；同时清掉“这一版已提示过”的标记，下一轮空闲可以再邀请
+watch(() => agent.lastStrokeTime, () => {
+  suggestionDismissed.value = false
+  resetIdleTimer()
+})
+
+// 清空画布：收起气泡，取消计时
+watch(() => agent.hasSketch, (hasSketch) => {
+  if (!hasSketch) {
+    suggestionDismissed.value = false
+    hideSuggestion()
+  }
+})
+
+// 任何入口开始生图：收起气泡并锁死这一版，生成结束后不再追着问
+watch(() => agent.isGenerating, (busy) => {
+  if (!busy) return
+
+  suggestionDismissed.value = true
+  hideSuggestion()
+})
+
+onUnmounted(() => {
+  clearIdleTimer()
+  if (suggestionNoticeTimer) {
+    clearTimeout(suggestionNoticeTimer)
+    suggestionNoticeTimer = null
+  }
+})
 
 /** 降级说明：让用户知道现在看到的是"真解读"还是"兜底文案"，答辩时也好讲 */
 const degradeText = computed(() => {
@@ -476,7 +645,10 @@ async function pasteGenerated() {
 
     ctx.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
 
+    // 贴上去也是画布内容；但不再刷新 lastStrokeTime，避免刚贴完就提示“要不要生成”
     agent.setHasSketch(true)
+    suggestionDismissed.value = true
+    hideSuggestion()
     agent.setGeneratedImage(null)
   } catch (err) {
     console.error('[canvas] 贴回失败：', err)
@@ -572,8 +744,9 @@ function toCanvasPoint(clientX: number, clientY: number) {
 function strokeSegment(from: { x: number; y: number }, to: { x: number; y: number }) {
   if (!ctx) return
 
-  // 画布上落墨了：/api/agent 的 context.hasSketch 靠这个标记
-  agent.setHasSketch(true)
+  // 画布上落墨了：/api/agent 的 context.hasSketch 靠这个标记；
+  // lastStrokeTime 同时刷新，空闲邀请从“这一段笔迹”重新计时
+  agent.markStroke()
 
   ctx.strokeStyle = brush.color
   ctx.lineWidth = brush.size
@@ -593,8 +766,8 @@ function startStroke(clientX: number, clientY: number) {
   drawing = true
   lastPoint = point
 
-  // 单击留下的这个点也算画布有内容
-  agent.setHasSketch(true)
+  // 单击留下的这个点也算画布有内容，并刷新空闲计时
+  agent.markStroke()
 
   ctx.fillStyle = brush.color
   ctx.beginPath()
@@ -652,9 +825,26 @@ function clear() {
   lastPoint = null
   lastGesturePoint = null
 
-  // 画布空了，告诉 AI 现在没有草图可参考
+  // 画布空了，告诉 AI 现在没有草图可参考；空闲邀请也一起收掉
+  suggestionDismissed.value = false
+  hideSuggestion()
+  stopSpeaking()
   agent.setHasSketch(false)
 }
 
 defineExpose({ clear, exportSketch })
 </script>
+
+<style scoped>
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.35s ease, translate 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fade-up-enter-from,
+.fade-up-leave-to {
+  opacity: 0;
+  translate: 0 12px;
+}
+</style>
+

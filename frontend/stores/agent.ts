@@ -61,6 +61,19 @@ export const useAgentStore = defineStore('agent', {
     hasSketch: false,
 
     /**
+     * 最后一次落笔/落墨的时间（毫秒时间戳）。
+     * 首页/画布用它做“10 秒没有新笔画”的空闲提示；0 表示当前没有笔迹。
+     */
+    lastStrokeTime: 0,
+
+    /**
+     * 是否正在生图。
+     * runAction('generate_image') 会把它置 true；所有生成入口（👍、建议气泡、风格库、
+     * Agent 动作）共用这个锁，避免同一张画并发生成。
+     */
+    isGenerating: false,
+
+    /**
      * 画布导出的桥。
      * useAgent 在 AgentPanel 里调用，拿不到 DrawingCanvas 的模板 ref，
      * 所以由画布在挂载时把自己的 exportSketch 挂上来（函数不是响应式对象，Pinia 不会包装它）。
@@ -91,6 +104,22 @@ export const useAgentStore = defineStore('agent', {
     },
     setHasSketch(v: boolean) {
       this.hasSketch = v
+      if (!v) this.lastStrokeTime = 0
+    },
+    /**
+     * 记录一次新的落墨。
+     * 不只置 hasSketch：空闲提示靠 lastStrokeTime 判断“用户是不是还在画”，
+     * 所以每一段笔迹都要刷新时间戳，不能只在起笔时记一次。
+     */
+    markStroke() {
+      this.hasSketch = true
+      this.lastStrokeTime = Date.now()
+    },
+    setLastStrokeTime(v: number) {
+      this.lastStrokeTime = v
+    },
+    setGenerating(v: boolean) {
+      this.isGenerating = v
     },
     setStyleResults(arr: StyleResult[]) {
       this.styleResults = arr
@@ -138,6 +167,8 @@ export const useAgentStore = defineStore('agent', {
       this.fallback = false
       this.styleResults = []
       this.generatedImage = null
+      this.lastStrokeTime = 0
+      this.isGenerating = false
     },
   },
 })

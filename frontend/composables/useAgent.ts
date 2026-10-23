@@ -141,6 +141,10 @@ export function useAgent() {
         const imageBase64 = exportSketch()
         if (!imageBase64) return '生成失败：画布还没准备好'
 
+        // 所有生成入口共用同一把锁：👍、空闲提示气泡、风格库、Agent 动作。
+        // 没有它，用户一边比 👍 一边点“好呀”会同时发两次请求，后回来的图会覆盖前一张。
+        if (store.isGenerating) return '正在生成中，请稍候'
+
         const styleKey = String(args.styleKey ?? '').trim()
         // LLM 给的 styleKey 常是它自己编的（比如 guofeng），优先用检索结果里能对上的那条，
         // 它的 prompt 是知识库里真实的提示词，比让模型现编靠谱
@@ -148,25 +152,32 @@ export function useAgent() {
           item => item.id === styleKey || item.title === styleKey || item.styleModifiers.includes(styleKey),
         )
 
-        const res = await $fetch<GenerateResponse>('/api/generate', {
-          method: 'POST',
-          body: {
-            imageBase64,
-            styleKey: matched?.id || styleKey,
-            promptOverride: matched?.styleModifiers,
-            strength: Number(args.strength) || 0.6,
-          },
-          // 服务端自己要轮询 30 秒，客户端给足余量
-          timeout: 45000,
-        })
+        store.setGenerating(true)
 
-        store.setGeneratedImage(res.imageUrl)
-        // 记下这次用的画风，下一次「随便」时让 AI 换一个
-        if (matched?.id || styleKey) store.setLastStyleKey(matched?.id || styleKey)
+        try {
+          const res = await $fetch<GenerateResponse>('/api/generate', {
+            method: 'POST',
+            body: {
+              imageBase64,
+              styleKey: matched?.id || styleKey,
+              promptOverride: matched?.styleModifiers,
+              strength: Number(args.strength) || 0.6,
+            },
+            // 服务端自己要轮询 30 秒，客户端给足余量
+            timeout: 45000,
+          })
 
-        return res.fallback
-          ? `生成服务没成功（${res.reason ?? '未知原因'}），先用占位图顶上`
-          : `生成完成，用时 ${res.costMs} ms`
+          store.setGeneratedImage(res.imageUrl)
+          // 记下这次用的画风，下一次「随便」时让 AI 换一个
+          if (matched?.id || styleKey) store.setLastStyleKey(matched?.id || styleKey)
+
+          return res.fallback
+            ? `生成服务没成功（${res.reason ?? '未知原因'}），先用占位图顶上`
+            : `生成完成，用时 ${res.costMs} ms`
+        }
+        finally {
+          store.setGenerating(false)
+        }
       }
 
       case 'analyze_sketch': {

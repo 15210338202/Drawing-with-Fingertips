@@ -320,7 +320,7 @@ async function handleThumbsUp() {
     return
   }
 
-  if (agent.loading || agent.streaming || agent.executing) {
+  if (agent.loading || agent.streaming || agent.executing || agent.isGenerating) {
     showThumbsUpNotice('AI 正在忙，等它完成再比 👍', 'warn')
     return
   }
