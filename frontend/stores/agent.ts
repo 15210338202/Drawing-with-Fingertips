@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { StyleSuggestion } from '~/utils/styleSuggestions'
 
 /** 模型返回的一个动作 */
 export interface AgentAction {
@@ -54,6 +55,18 @@ export const useAgentStore = defineStore('agent', {
      */
     lastStyleKey: '',
 
+    /** 上一次生成实际使用的画风，结果 Sheet 用它高亮推荐理由 */
+    lastGeneratedStyleId: '',
+
+    /** AI 看图后返回的 Top 3 风格；没有手动指定时，生成默认用第一条 */
+    currentSuggestions: [] as StyleSuggestion[],
+
+    /**
+     * 当前作品生成时用的草图 data URL。
+     * 结果 Sheet 换风格重绘必须复用同一张草图，不能重新导出（用户可能已经继续画了）。
+     */
+    lastSketchBase64: null as string | null,
+
     /**
      * 画布上有没有内容，作为 /api/agent 的 context.hasSketch 传上去。
      * DrawingCanvas 落笔时置 true、清空时置 false —— 让 AI 知道是空画布还是已经有草图。
@@ -104,7 +117,11 @@ export const useAgentStore = defineStore('agent', {
     },
     setHasSketch(v: boolean) {
       this.hasSketch = v
-      if (!v) this.lastStrokeTime = 0
+      if (!v) {
+        this.lastStrokeTime = 0
+        // 画布清空后，上一张画的风格推荐不再有效，避免新手势继续沿用旧推荐
+        this.currentSuggestions = []
+      }
     },
     /**
      * 记录一次新的落墨。
@@ -130,6 +147,15 @@ export const useAgentStore = defineStore('agent', {
     /** 记录上一次生成用的画风，供「随便来一个」避重 */
     setLastStyleKey(id: string) {
       this.lastStyleKey = id
+    },
+    setLastGeneratedStyleId(id: string) {
+      this.lastGeneratedStyleId = id
+    },
+    setCurrentSuggestions(list: StyleSuggestion[]) {
+      this.currentSuggestions = list
+    },
+    setLastSketchBase64(dataUrl: string | null) {
+      this.lastSketchBase64 = dataUrl
     },
     setSketchExporter(fn: null | (() => string | null)) {
       this.sketchExporter = fn
@@ -167,6 +193,10 @@ export const useAgentStore = defineStore('agent', {
       this.fallback = false
       this.styleResults = []
       this.generatedImage = null
+      this.lastStyleKey = ''
+      this.lastGeneratedStyleId = ''
+      this.currentSuggestions = []
+      this.lastSketchBase64 = null
       this.lastStrokeTime = 0
       this.isGenerating = false
     },

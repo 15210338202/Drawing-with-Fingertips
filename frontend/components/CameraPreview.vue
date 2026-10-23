@@ -165,7 +165,6 @@ import type { DetectedHand } from '~/workers/hand.worker'
 // 否则 useCalibrationStore 是 undefined，整个组件 setup 直接抛错（表现为按钮点了没反应）
 import { useCalibrationStore } from '~/stores/calibration'
 import { useAgentStore } from '~/stores/agent'
-import type { StyleResult } from '~/stores/agent'
 import { useTTS } from '~/composables/useTTS'
 import { OneEuroFilter } from '~/utils/oneEuroFilter'
 
@@ -300,11 +299,24 @@ function flashThumbsUp() {
   }, 1200)
 }
 
-/** 当前风格：优先上次生成用的，否则风格列表第一条；没有风格就让服务端走默认 */
-function preferredStyle(): StyleResult | null {
-  return agent.styleResults.find(item => item.id === agent.lastStyleKey)
-    ?? agent.styleResults[0]
-    ?? null
+/**
+ * 👍 之前如果还没看过图，先补一次风格分析。
+ *
+ * 之前只把“不传 styleKey”当成“会用 AI 推荐”，但没点过“让 AI 猜猜”时
+ * currentSuggestions 是空的，generate_image 只能退回第一条风格（水墨），
+ * 所以手势生成永远像国风。这里先静默拿一次推荐，再走原来的生成链路。
+ */
+async function ensureStyleSuggestions(): Promise<boolean> {
+  if (agent.currentSuggestions.length) return true
+
+  try {
+    await runAction({ tool: 'analyze_sketch', args: { silent: true } })
+  }
+  catch (err) {
+    console.warn('[thumbs-up] 风格分析失败，回退默认风格', err)
+  }
+
+  return agent.currentSuggestions.length > 0
 }
 
 /**
@@ -330,22 +342,30 @@ async function handleThumbsUp() {
     return
   }
 
-  const style = preferredStyle()
   generatingByThumbsUp.value = true
   flashThumbsUp()
-  showThumbsUpNotice(
-    style ? `👍 收到，用「${style.title}」生成中…` : '👍 收到，生成中…',
-    'success',
-    0,
-  )
-  // 先给一句语音反馈，再发请求；生成本身要等几秒，声音能让用户确认“手势已经生效”
-  speak('好嘞，马上为你变魔法！')
 
   try {
+    // 没看过图时，先静默分析一次，否则 currentSuggestions 为空，
+    // 生成会退回第一条水墨风格，看起来“永远都是国风”。
+    let picked = agent.currentSuggestions.length > 0
+    if (!picked) {
+      showThumbsUpNotice('👍 收到，先看看画，挑个风格…', 'success', 0)
+      speak('我先看看你的画，挑个风格。')
+      picked = await ensureStyleSuggestions()
+    }
+
+    showThumbsUpNotice(
+      picked ? '👍 风格挑好了，开始生成…' : '👍 先按默认风格生成…',
+      'success',
+      0,
+    )
+    speak('好嘞，马上为你变魔法！')
+
+    // 不传 styleKey：让 generate_image 优先用 AI 看图后推荐的最高分风格
     const message = await runAction({
       tool: 'generate_image',
       args: {
-        styleKey: style?.id ?? '',
         strength: 0.6,
       },
     })

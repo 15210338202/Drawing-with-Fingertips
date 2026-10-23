@@ -90,7 +90,28 @@ export function normalizeTone(value: unknown): InsightToneKey {
  * - 不猜测任何身心状况（这类表述对特殊人群极不友好，也超出能力边界）；
  * - 严格输出 JSON，字段名固定，方便前端直接渲染。
  */
-export function buildInsightPrompt(tone: InsightToneKey, keywords: string): string {
+export function buildInsightPrompt(
+  tone: InsightToneKey,
+  keywords: string,
+  styleCatalog = '',
+): string {
+  const styleBlock = styleCatalog
+    ? `
+风格库（styleKey 必须原样取自这里，不能编造）：
+${styleCatalog}
+
+请再从风格库里挑 3 个最适合这幅画的风格，按匹配度从高到低，给出 0–1 的分数和一句具体理由：
+- reason 要提到画面里的线条/颜色/留白/疏密，不要只写“很适合”；
+- 三个 styleKey 不能重复；
+- 极简/线稿（如 mn-01）通常只是描一遍原图，改动较小；除非画面本身就是极简线稿，否则只作为备选，不要排在第一位；
+- 这 3 条会直接展示给用户，理由要像一句温柔、具体的推荐语。
+`.trim()
+    : ''
+
+  const schema = styleCatalog
+    ? '{"observation":"…","feeling":"…","invitation":"…","suggestions":["…","…","…"],"styleSuggestions":[{"styleKey":"gf-01","score":0.9,"reason":"…"}]}'
+    : '{"observation":"…","feeling":"…","invitation":"…","suggestions":["…","…","…"]}'
+
   const common = `
 你是一位善于观察的儿童艺术陪伴者，正在看一幅孩子的画。
 硬性要求：
@@ -101,12 +122,13 @@ export function buildInsightPrompt(tone: InsightToneKey, keywords: string): stri
 参考视觉关键词（可能不准，仅供你参考，不要直接罗列）：${keywords}
 
 严格输出 JSON，且只有 JSON：
-{"observation":"…","feeling":"…","invitation":"…","suggestions":["…","…","…"]}
+${schema}
 其中：
 - observation（观察）：≤2 句，描述颜色、线条走向、疏密、留白；
 - feeling（感受）：以"我好像感觉到"开头，给 1 个开放的情绪猜测，并说明依据；
 - invitation（邀请）：1 个开放问题，邀请孩子自己说说；
 - suggestions（提议）：3 个艺术转化方向，每个不超过 6 个字。
+${styleBlock}
 `.trim()
 
   const variants: Record<InsightToneKey, string> = {

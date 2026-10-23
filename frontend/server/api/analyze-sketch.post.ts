@@ -3,6 +3,11 @@ import {
   normalizeInsight, normalizeTone,
 } from '~/utils/insight'
 import type { Insight } from '~/utils/insight'
+import stylesData from '../data/styles.json'
+import { buildStyleCatalog } from '~/utils/styles'
+import type { StyleLike } from '~/utils/styles'
+import { fallbackStyleSuggestions, normalizeStyleSuggestions } from '~/utils/styleSuggestions'
+import type { StyleSuggestion } from '~/utils/styleSuggestions'
 import { extractVisualKeywords } from '../utils/vision'
 
 /**
@@ -26,9 +31,18 @@ const DEEPSEEK_TIMEOUT = 30000
 /** 客户端传来的 base64 上限 */
 const MAX_BASE64_LENGTH = 8_000_000
 
+/**
+ * 直接 import JSON：构建时打进产物，运行时不用读磁盘。
+ * 和 /api/generate、/api/search-style 使用同一份风格库。
+ */
+const STYLES = stylesData as StyleLike[]
+const STYLE_CATALOG = buildStyleCatalog(STYLES, 6)
+
 interface AnalyzePayload extends Insight {
   /** 喂给 DeepSeek 的视觉关键词（调试用） */
   keywords: string
+  /** AI 从风格库里挑的 Top 3；模型失败时用本地关键词排序兜底 */
+  styleSuggestions: StyleSuggestion[]
   /** 降级情况：none=全链路正常 */
   degrade: 'none' | 'llava' | 'deepseek' | 'both'
   /** 降级原因（给控制台和 UI 提示） */
@@ -63,14 +77,19 @@ export default defineEventHandler(async (event): Promise<{ success: true, data: 
   const vision = await extractKeywords(bytes)
   const keywords = vision.keywords
 
-  // ===== 第二步：DeepSeek 把关键词讲成中文 =====
-  const writing = await composeInsight(tone, keywords)
+  // ===== 第二步：DeepSeek 把关键词讲成中文，并给风格打分 =====
+  const writing = await composeInsight(tone, keywords, STYLE_CATALOG)
 
   // 解析失败（模型没给 JSON）时就当这一步降级，用兜底文案
   const parsed = writing.raw ? extractJson(writing.raw) : null
   const insight = parsed
     ? normalizeInsight(parsed, tone)
     : { ...FALLBACK_INSIGHT, tone }
+
+  // 风格建议独立兜底：文案可能是兜底，但推荐仍然要基于 keywords 给出可用结果。
+  const styleSuggestions = parsed
+    ? normalizeStyleSuggestions(parsed.styleSuggestions, STYLES, keywords, 3)
+    : fallbackStyleSuggestions(STYLES, keywords, 3)
 
   const degrade: AnalyzePayload['degrade']
     = vision.error && writing.error ? 'both'
@@ -85,6 +104,7 @@ export default defineEventHandler(async (event): Promise<{ success: true, data: 
     data: {
       ...insight,
       keywords,
+      styleSuggestions,
       degrade,
       reason: reasons.length ? reasons.join(' / ') : undefined,
       costMs: Date.now() - startedAt,
@@ -102,7 +122,11 @@ function extractKeywords(bytes: Buffer) {
 }
 
 /** 调 DeepSeek 生成共情文案；失败不抛，返回 error 让上层走兜底 */
-async function composeInsight(tone: Parameters<typeof buildInsightPrompt>[0], keywords: string) {
+async function composeInsight(
+  tone: Parameters<typeof buildInsightPrompt>[0],
+  keywords: string,
+  styleCatalog: string,
+) {
   const apiKey = process.env.DEEPSEEK_API_KEY
 
   if (!apiKey) {
@@ -119,11 +143,12 @@ async function composeInsight(tone: Parameters<typeof buildInsightPrompt>[0], ke
       },
       body: {
         model: DEEPSEEK_MODEL,
-        messages: [{ role: 'system', content: buildInsightPrompt(tone, keywords) }],
+        messages: [{ role: 'system', content: buildInsightPrompt(tone, keywords, styleCatalog) }],
         // 强制 JSON，少一层解析容错
         response_format: { type: 'json_object' },
-        temperature: 0.7,
-        max_tokens: 500,
+        // 风格打分需要稳定、可复现的排序；文案仍保留一点温度
+        temperature: 0.55,
+        max_tokens: 1200,
       },
       timeout: DEEPSEEK_TIMEOUT,
     })

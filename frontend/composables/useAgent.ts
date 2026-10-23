@@ -1,4 +1,5 @@
 import { detectCasualIntent } from '~/utils/styles'
+import type { StyleSuggestion } from '~/utils/styleSuggestions'
 import { useTTS } from '~/composables/useTTS'
 
 /** /api/agent 的响应，契约见 docs/api.md 第 1 节 */
@@ -138,19 +139,45 @@ export function useAgent() {
       }
 
       case 'generate_image': {
-        const imageBase64 = exportSketch()
+        // 换风格重绘会传 lastSketchBase64，复用生成当前作品的那张草图；
+        // 普通入口没传时才现场导出（导出的图已经裁白边 + 二值化，适合模型识别）。
+        const providedSketch = typeof args.sketchBase64 === 'string'
+          && args.sketchBase64.startsWith('data:image')
+          ? args.sketchBase64
+          : ''
+        const imageBase64 = providedSketch || exportSketch()
         if (!imageBase64) return '生成失败：画布还没准备好'
 
         // 所有生成入口共用同一把锁：👍、空闲提示气泡、风格库、Agent 动作。
         // 没有它，用户一边比 👍 一边点“好呀”会同时发两次请求，后回来的图会覆盖前一张。
         if (store.isGenerating) return '正在生成中，请稍候'
 
-        const styleKey = String(args.styleKey ?? '').trim()
-        // LLM 给的 styleKey 常是它自己编的（比如 guofeng），优先用检索结果里能对上的那条，
-        // 它的 prompt 是知识库里真实的提示词，比让模型现编靠谱
-        const matched = store.styleResults.find(
-          item => item.id === styleKey || item.title === styleKey || item.styleModifiers.includes(styleKey),
-        )
+        const requested = String(args.styleKey ?? '').trim()
+        // LLM/调用方给的 styleKey 可能是标题或编出来的 id；
+        // 优先在检索结果里找真实条目，避免把不存在的 id 发给服务端。
+        // 注意：requested 为空时不能查，否则 styleModifiers.includes('') 恒为 true，
+        // 会把第一条风格（水墨）误当成“用户手动指定”，AI 推荐永远轮不到。
+        const requestedMatch = requested
+          ? store.styleResults.find(
+            item => item.id === requested || item.title === requested || item.styleModifiers.includes(requested),
+          )
+          : undefined
+
+        // 用户没有手动指定时，默认用 AI 看图后推荐的第一名；
+        // 还没看过图（没有推荐）才退回上次风格/清单第一条。
+        const aiTop = store.currentSuggestions[0]?.styleKey ?? ''
+        const styleKey = requestedMatch?.id
+          || requested
+          || aiTop
+          || store.lastStyleKey
+          || store.styleResults[0]?.id
+          || ''
+
+        const matched = styleKey
+          ? store.styleResults.find(
+            item => item.id === styleKey || item.title === styleKey || item.styleModifiers.includes(styleKey),
+          )
+          : undefined
 
         store.setGenerating(true)
 
@@ -168,12 +195,18 @@ export function useAgent() {
           })
 
           store.setGeneratedImage(res.imageUrl)
-          // 记下这次用的画风，下一次「随便」时让 AI 换一个
-          if (matched?.id || styleKey) store.setLastStyleKey(matched?.id || styleKey)
+          store.setLastSketchBase64(imageBase64)
+          // 记下这次用的画风：lastStyleKey 供「随便」避重，lastGeneratedStyleId 供结果页高亮
+          if (styleKey) {
+            const finalKey = matched?.id || styleKey
+            store.setLastStyleKey(finalKey)
+            store.setLastGeneratedStyleId(finalKey)
+          }
 
+          const label = matched?.title ? `「${matched.title}」` : ''
           return res.fallback
             ? `生成服务没成功（${res.reason ?? '未知原因'}），先用占位图顶上`
-            : `生成完成，用时 ${res.costMs} ms`
+            : `生成完成${label}，用时 ${res.costMs} ms`
         }
         finally {
           store.setGenerating(false)
@@ -186,11 +219,19 @@ export function useAgent() {
           : exportSketch()
 
         if (!imageBase64) return '看图失败：画布还没准备好'
+        const silent = Boolean(args.silent)
 
         // llava + DeepSeek 两级，最坏 20 秒左右，超时给足
         const res = await $fetch<{
           success: boolean
-          data: { observation: string, feeling: string, invitation: string, suggestions: string[], degrade?: string }
+          data: {
+            observation: string
+            feeling: string
+            invitation: string
+            suggestions: string[]
+            styleSuggestions?: StyleSuggestion[]
+            degrade?: string
+          }
         }>('/api/analyze-sketch', {
           method: 'POST',
           body: { imageBase64 },
@@ -198,6 +239,9 @@ export function useAgent() {
         })
 
         if (!res.success || !res.data) return '看图失败：AI 没有返回解读结果'
+
+        // 推荐直接进 store：之后 👍/空闲气泡不指定风格时，generate_image 会默认用第一条
+        store.setCurrentSuggestions(res.data.styleSuggestions ?? [])
 
         const { observation, feeling, invitation, suggestions } = res.data
 
@@ -207,7 +251,8 @@ export function useAgent() {
           .map(part => part?.trim())
           .filter((part): part is string => Boolean(part))
           .join('。')
-        if (spoken) speak(spoken, { rate: 0.95, pitch: 1.06 })
+        // 手势/空闲气泡只是借这次分析拿风格推荐，不要把整段解读念出来打断用户
+        if (spoken && !silent) speak(spoken, { rate: 0.95, pitch: 1.06 })
 
         // 一句自然语言回给对话区；建议里第一个顺手做成风格检索，让用户能直接接下一步
         return `${observation}${feeling}想问问你：${invitation}`

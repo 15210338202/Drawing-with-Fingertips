@@ -127,6 +127,7 @@
 import { lerp, toPercent } from '~/utils/cursor'
 import { DEFAULT_TONE, INSIGHT_TONES } from '~/utils/insight'
 import type { Insight, InsightToneKey } from '~/utils/insight'
+import type { StyleSuggestion } from '~/utils/styleSuggestions'
 import { useTTS } from '~/composables/useTTS'
 import { generateStoryCard } from '~/utils/storyCard'
 import { buildStoryCaption, condenseInsight } from '~/utils/storyCaption'
@@ -362,7 +363,12 @@ const { speak, stop: stopSpeaking } = useTTS()
 
 const analyzing = ref(false)
 /** 解读结果；degrade 表示哪一级模型降级了 */
-const insight = ref<(Insight & { degrade?: string, keywords?: string, costMs?: number }) | null>(null)
+const insight = ref<(Insight & {
+  degrade?: string
+  keywords?: string
+  costMs?: number
+  styleSuggestions?: StyleSuggestion[]
+}) | null>(null)
 const insightError = ref('')
 const tone = ref<InsightToneKey>(DEFAULT_TONE)
 
@@ -448,6 +454,25 @@ function dismissSuggestion() {
   stopSpeaking()
 }
 
+/**
+ * 空闲气泡/手势生成前，确保已经有 AI 风格推荐。
+ *
+ * 只“不传 styleKey”并不等于会用 AI 推荐：没点过“让 AI 猜猜”时
+ * currentSuggestions 是空的，generate_image 会退回第一条水墨风格。
+ */
+async function ensureStyleSuggestions(): Promise<boolean> {
+  if (agent.currentSuggestions.length) return true
+
+  try {
+    await runAction({ tool: 'analyze_sketch', args: { silent: true } })
+  }
+  catch (err) {
+    console.warn('[suggestion] 风格分析失败，回退默认风格', err)
+  }
+
+  return agent.currentSuggestions.length > 0
+}
+
 /** 用当前/上次风格直接生图；失败只显示一句话，成功走画布上的“贴回画布”浮层 */
 async function triggerSuggestionGenerate() {
   if (agent.isGenerating) return
@@ -456,21 +481,22 @@ async function triggerSuggestionGenerate() {
     return
   }
 
-  const style = agent.styleResults.find(item => item.id === agent.lastStyleKey)
-    ?? agent.styleResults[0]
-    ?? null
-
   suggestionDismissed.value = true
   hideSuggestion()
 
-  // 把邀请语收掉，换成“马上做”的确认；不打断的话两句会叠在一起
-  speak('好嘞，马上为你变魔法！')
-
   try {
+    if (!agent.currentSuggestions.length) {
+      showSuggestionNotice('先看看画，挑个风格…')
+      await ensureStyleSuggestions()
+    }
+
+    // 把邀请语收掉，换成“马上做”的确认；不打断的话两句会叠在一起
+    speak('好嘞，马上为你变魔法！')
+
+    // 不传 styleKey：generate_image 会优先用 AI 推荐的最高分风格
     const message = await runAction({
       tool: 'generate_image',
       args: {
-        styleKey: style?.id ?? '',
         strength: 0.6,
       },
     })
@@ -541,11 +567,18 @@ async function analyzeSketch() {
 
   analyzing.value = true
   insightError.value = ''
+  // 新一次看图开始，旧推荐立即失效；失败时也不会拿上一次的旧结果去生图
+  agent.setCurrentSuggestions([])
 
   try {
     const res = await $fetch<{
       success: boolean
-      data: Insight & { degrade?: string, keywords?: string, costMs?: number }
+      data: Insight & {
+        degrade?: string
+        keywords?: string
+        costMs?: number
+        styleSuggestions?: StyleSuggestion[]
+      }
     }>('/api/analyze-sketch', {
       method: 'POST',
       body: { imageBase64, tone: tone.value },
@@ -559,6 +592,9 @@ async function analyzeSketch() {
     }
 
     insight.value = res.data
+
+    // AI 推荐进 store：之后 👍 / 空闲气泡不指定风格时，默认用最高分那条
+    agent.setCurrentSuggestions(res.data.styleSuggestions ?? [])
 
     // 念“感受 + 邀请”，观察文字留在卡片里；语速稍慢、音调稍高，像陪孩子说话
     const spoken = [res.data.feeling, res.data.invitation]
