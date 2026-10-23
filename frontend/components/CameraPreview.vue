@@ -1,11 +1,11 @@
 <template>
-  <div class="border rounded p-4 bg-white">
+  <div class="camera-preview rounded-card border border-line bg-surface p-4 shadow-soft">
     <h2 class="font-semibold">摄像头预览区</h2>
 
     <!-- 预览区域：宽高比跟随真实画幅（而不是写死 4:3），否则 object-contain 会加黑边、
          红点和关键点覆盖层就跟画面内容错位 -->
     <div
-      class="relative mt-2 w-[640px] max-w-full bg-gray-200 flex items-center justify-center overflow-hidden rounded transition-shadow duration-200"
+      class="relative mt-2 flex w-full items-center justify-center overflow-hidden rounded bg-gray-200 transition-shadow duration-200"
       :class="thumbsUpFlash ? 'ring-4 ring-emerald-400' : ''"
       :style="{ aspectRatio: String(gesture.cameraAspect || 4 / 3) }"
     >
@@ -92,7 +92,7 @@
     <div class="mt-2 flex flex-wrap items-center gap-2">
       <button
         v-if="!isActive"
-        class="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
+        class="min-h-10 rounded-full bg-sage px-3.5 text-sm font-medium text-white transition-colors hover:bg-sage-strong disabled:opacity-50"
         :disabled="isStarting"
         @click="startCamera"
       >
@@ -100,7 +100,7 @@
       </button>
       <button
         v-else
-        class="px-3 py-1 bg-red-500 text-white rounded"
+        class="min-h-10 rounded-full border border-line bg-surface px-3.5 text-sm font-medium text-danger transition-colors hover:bg-danger/5"
         @click="stopCamera"
       >
         关闭摄像头

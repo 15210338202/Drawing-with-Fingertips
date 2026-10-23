@@ -1,5 +1,5 @@
 <template>
-  <div class="border rounded p-4 bg-white">
+  <div class="rounded-card border border-line bg-surface p-4 shadow-soft">
     <h2 class="font-semibold">画布区</h2>
 
     <!-- 生成结果浮层要和画布像素级对齐，所以叠在同一个盒子里 -->
@@ -8,7 +8,7 @@
         ref="canvasEl"
         width="800"
         height="600"
-        class="block w-full border bg-white cursor-crosshair touch-none"
+        class="block w-full cursor-crosshair touch-none rounded-xl border border-line bg-[#fffdf8]"
         @mousedown="onMouseDown"
         @mousemove="onMouseMove"
         @mouseup="onPointerUp"
@@ -46,14 +46,14 @@
 
         <div class="flex flex-wrap justify-center gap-2">
           <button
-            class="rounded bg-emerald-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+            class="rounded-lg bg-sage px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             :disabled="savingCard"
             @click="saveStoryCard"
           >
             {{ savingCard ? '制作中...' : '保存故事卡' }}
           </button>
           <button
-            class="rounded bg-blue-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+            class="rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             :disabled="pasting"
             @click="pasteGenerated"
           >
@@ -85,7 +85,7 @@
             暂不
           </button>
           <button
-            class="rounded-full bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
+            class="rounded-full bg-sage px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-sage-strong disabled:opacity-50"
             :disabled="agent.isGenerating"
             @click="triggerSuggestionGenerate"
           >
@@ -108,7 +108,7 @@
     <div class="mt-3 rounded border p-3">
       <div class="flex flex-wrap items-center gap-2">
         <button
-          class="rounded bg-purple-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+          class="rounded-lg bg-sage px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           :disabled="analyzing"
           @click="analyzeSketch"
         >

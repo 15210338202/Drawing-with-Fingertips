@@ -1,66 +1,192 @@
 <template>
-  <div class="min-h-screen bg-gray-100 p-4">
-    <header class="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold">指尖绘迹</h1>
-        <p v-if="appStore.isSensoryFriendly" class="mt-0.5 text-xs text-green-700">
-          感官友好模式已开启 · 动画更轻、声音更慢
-        </p>
+  <div class="min-h-screen overflow-hidden bg-paper">
+    <AppHeader />
+
+    <main class="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1200px] items-center px-4 py-10 sm:px-6 lg:py-16">
+      <div class="welcome-glow" aria-hidden="true" />
+
+      <div class="relative grid w-full items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
+        <section>
+          <p class="text-xs font-semibold tracking-[0.22em] text-sage">一个安静的手势画室</p>
+
+          <h1 class="mt-4 text-[2.5rem] font-semibold leading-[1.15] tracking-wide text-ink sm:text-5xl lg:text-[3.4rem]">
+            用手，把心里的
+            <span class="block text-sage">画面画出来。</span>
+          </h1>
+
+          <p class="mt-6 max-w-xl text-base leading-8 text-muted sm:text-lg">
+            捏合落笔，握拳清空，比个 👍 让小绘帮你把涂鸦变成作品。
+            不需要画笔，也不需要赶时间。
+          </p>
+
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <NuxtLink
+              to="/studio"
+              class="group inline-flex min-h-12 items-center gap-2 rounded-full bg-sage px-6 text-base font-semibold text-white shadow-soft transition-colors hover:bg-sage-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+            >
+              进入画室
+              <svg
+                class="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </NuxtLink>
+
+            <a
+              href="#how"
+              class="inline-flex min-h-12 items-center rounded-full px-3 text-sm font-medium text-muted underline-offset-4 transition-colors hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"
+            >
+              先看看怎么用
+            </a>
+          </div>
+
+          <p class="mt-6 flex max-w-md items-start gap-2 text-xs leading-5 text-muted">
+            <svg
+              class="mt-0.5 h-3.5 w-3.5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3 4.5 6v6c0 4.6 3.2 7.9 7.5 9 4.3-1.1 7.5-4.4 7.5-9V6L12 3Z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+            摄像头画面只在本机识别，不会上传；进入画室后，由你决定是否开启摄像头。
+          </p>
+        </section>
+
+        <section class="relative mx-auto w-full max-w-[460px]" aria-label="画室预览">
+          <div class="paper-stage">
+            <div class="flex items-center justify-between border-b border-line/80 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full bg-sage" aria-hidden="true" />
+                <span class="text-xs font-medium tracking-wide text-muted">正在创作</span>
+              </div>
+              <span class="rounded-full bg-sage-soft px-2 py-1 text-[10px] font-medium text-sage">小绘陪着你</span>
+            </div>
+
+            <div class="relative mt-4 aspect-[4/3] overflow-hidden rounded-2xl border border-line/80 bg-[#fffdf8]">
+              <svg
+                class="absolute inset-0 h-full w-full"
+                viewBox="0 0 420 315"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M58 232c34-47 63-50 88-18 26 33 53 21 74-22 18-37 44-48 65-29 22 19 40 7 63-26"
+                  stroke="#4f735f"
+                  stroke-width="5"
+                  stroke-linecap="round"
+                />
+                <circle cx="305" cy="112" r="46" fill="#e5efe7" />
+                <circle cx="126" cy="94" r="22" fill="#f1ddd1" />
+                <path d="M72 272h120" stroke="#e2d8c7" stroke-width="3" stroke-linecap="round" />
+                <path d="M72 284h76" stroke="#e2d8c7" stroke-width="3" stroke-linecap="round" />
+              </svg>
+
+              <span class="absolute left-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-medium text-sage shadow-sm backdrop-blur">
+                <span class="h-1.5 w-1.5 rounded-full bg-sage" aria-hidden="true" />
+                捏合 · 落笔
+              </span>
+
+              <span class="absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-ink/80 px-2.5 py-1 text-[10px] font-medium text-white shadow-sm backdrop-blur">
+                👍 · 生成
+              </span>
+            </div>
+
+            <div class="mt-4 flex items-center gap-3 rounded-2xl border border-line/80 bg-surface px-3 py-2.5">
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-peach/15 text-sm">✦</span>
+              <p class="text-xs leading-5 text-muted">
+                画完停一会儿，小绘会轻轻问你：<br>
+                “需要我帮你把这幅画变成艺术品吗？”
+              </p>
+            </div>
+          </div>
+
+          <div class="absolute -bottom-4 -left-4 hidden rounded-2xl border border-line bg-surface px-3 py-2 text-[11px] text-muted shadow-soft sm:block">
+            手势优先 · 也可以鼠标
+          </div>
+        </section>
       </div>
+    </main>
 
-      <button
-        type="button"
-        class="flex items-center gap-2 rounded-full border px-3 py-1.5 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1"
-        :class="appStore.isSensoryFriendly
-          ? 'border-green-300 bg-green-100 text-green-700'
-          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'"
-        :aria-pressed="appStore.isSensoryFriendly"
-        title="开启/关闭感官友好模式"
-        @click="appStore.toggleSensoryMode()"
-      >
-        <svg
-          class="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+    <section id="how" class="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6">
+      <div class="grid gap-3 sm:grid-cols-3">
+        <article
+          v-for="step in steps"
+          :key="step.number"
+          class="rounded-card border border-line bg-surface p-4 shadow-soft"
         >
-          <path d="M20.5 3.5C12 3.5 5.5 7 4.2 15.2c-.3 1.9 1 3.8 2.9 3.8 8.3 0 12.2-7.2 13.4-15.5Z" />
-          <path d="M4.5 19.5c2.8-5.2 6.6-8.3 12-10.5" />
-        </svg>
-        <span class="text-sm font-medium">感官友好</span>
-        <span v-if="appStore.isSensoryFriendly" class="text-[11px] text-green-600">已开启</span>
-      </button>
-    </header>
-
-    <!-- 上半部分：摄像头 + 画布 -->
-    <div class="grid grid-cols-2 gap-4">
-      <CameraPreview />
-      <DrawingCanvas ref="canvasRef" />
-    </div>
-
-    <!-- 下半部分：工具栏 + Agent 面板 + 风格库 -->
-    <div class="mt-4 flex gap-4">
-      <Toolbar @clear="canvasRef?.clear()" />
-      <AgentPanel />
-      <StyleGallery />
-    </div>
+          <p class="text-xs font-semibold tracking-[0.18em] text-sage">{{ step.number }}</p>
+          <h2 class="mt-2 text-base font-semibold text-ink">{{ step.title }}</h2>
+          <p class="mt-1.5 text-sm leading-6 text-muted">{{ step.body }}</p>
+        </article>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useAppStore } from '~/stores/app'
+import AppHeader from '~/components/AppHeader.vue'
 
-const appStore = useAppStore()
-
-/** DrawingCanvas 通过 defineExpose 暴露了 clear()，这里用模板 ref 接住它 */
-const canvasRef = ref<{ clear: () => void } | null>(null)
-
-onMounted(() => {
-  // app.vue 已在挂载后初始化；这里兜底 HMR/多入口的极端情况。
-  appStore.initSensoryMode()
-})
+const steps = [
+  {
+    number: '01',
+    title: '开启摄像头',
+    body: '进入画室后点一下“开启摄像头”。画面只在本机识别，不会上传。',
+  },
+  {
+    number: '02',
+    title: '捏合落笔',
+    body: '食指和拇指轻轻捏住，像握笔一样移动；松开就停笔。握拳可以清空。',
+  },
+  {
+    number: '03',
+    title: '交给小绘',
+    body: '比个 👍，或点“让 AI 猜猜”，小绘会帮你生成作品、讲出画里的心情。',
+  },
+]
 </script>
+
+<style scoped>
+.welcome-glow {
+  position: absolute;
+  top: -120px;
+  right: -100px;
+  width: 460px;
+  height: 460px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(79 115 95 / 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.paper-stage {
+  position: relative;
+  border: 1px solid #e2d8c7;
+  border-radius: 28px;
+  background:
+    linear-gradient(145deg, rgb(255 252 245 / 0.96), rgb(246 241 231 / 0.9)),
+    repeating-linear-gradient(0deg, rgb(120 100 72 / 0.035) 0 1px, transparent 1px 5px);
+  padding: 18px;
+  box-shadow: 0 18px 50px rgb(60 50 40 / 0.1);
+}
+
+@media (max-width: 640px) {
+  .welcome-glow {
+    width: 280px;
+    height: 280px;
+    right: -120px;
+  }
+}
+</style>

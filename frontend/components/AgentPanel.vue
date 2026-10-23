@@ -1,9 +1,11 @@
 <template>
-  <div class="border rounded p-4 bg-white flex w-[360px] flex-col gap-2">
-    <h2 class="font-semibold">AI 助手</h2>
+  <div :class="embedded
+    ? 'flex w-full flex-col gap-2'
+    : 'flex w-[360px] flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-soft'">
+    <h2 v-if="!embedded" class="font-semibold">AI 助手</h2>
 
     <!-- 消息列表：固定高度 + 可滚动，新内容进来自动滚到底 -->
-    <div ref="listEl" class="h-48 space-y-2 overflow-y-auto text-sm">
+    <div ref="listEl" class="space-y-2 overflow-y-auto text-sm" :class="embedded ? 'h-64' : 'h-48'">
       <p v-if="!store.messages.length" class="text-gray-400">
         说点什么，比如「这个草图适合什么风格」
       </p>
@@ -15,7 +17,7 @@
       >
         <span
           class="inline-block max-w-[85%] whitespace-pre-wrap rounded px-2 py-1 text-left"
-          :class="message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'"
+          :class="message.role === 'user' ? 'bg-sage text-white' : 'bg-surface-2 text-ink'"
         >{{ message.content }}</span>
         <!-- 流式回答刚开始、还没吐出字时给个光标，让用户知道在生成 -->
         <span
@@ -47,7 +49,7 @@
       <button
         v-if="voiceSupported"
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
-        :class="isActive ? 'animate-pulse bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'"
+        :class="isActive ? 'animate-pulse bg-danger text-white' : 'bg-surface-2 text-muted hover:bg-line/60'"
         :disabled="busy"
         :title="voiceTitle"
         @click="toggleVoice"
@@ -65,7 +67,7 @@
       <input
         v-model="input"
         :disabled="store.loading"
-        class="min-w-0 flex-1 rounded border px-2 py-1 disabled:bg-gray-100"
+        class="min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none placeholder:text-muted/70 focus:border-sage/50 focus:ring-2 focus:ring-sage/15 disabled:bg-surface-2"
         placeholder="说点什么，比如「把它变成国风」"
         @keyup.enter="submitSend"
       />
@@ -82,7 +84,7 @@
     <div class="flex gap-2">
       <!-- 主入口：走 /api/agent，解析意图并串行执行动作（改颜色 / 检索风格 / 生成图片） -->
       <button
-        class="rounded bg-green-500 px-3 py-1 text-white disabled:opacity-50"
+        class="min-h-10 rounded-full bg-sage px-4 text-sm font-medium text-white transition-colors hover:bg-sage-strong disabled:opacity-50"
         :disabled="busy || !input.trim()"
         title="解析意图并执行动作：改颜色、检索风格、生成图片"
         @click="submitSend"
@@ -92,7 +94,7 @@
 
       <!-- 次入口：走 /api/chat，只聊天，不执行任何动作 -->
       <button
-        class="rounded border border-gray-300 px-3 py-1 text-gray-700 disabled:opacity-50"
+        class="min-h-10 rounded-full border border-line px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-2/70 disabled:opacity-50"
         :disabled="busy || !input.trim()"
         title="只聊天，边生成边显示，不会改动画布"
         @click="submitStream"
@@ -113,6 +115,8 @@
 </template>
 
 <script setup lang="ts">
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+
 const store = useAgentStore()
 const { send, chatStream, stop } = useAgent()
 

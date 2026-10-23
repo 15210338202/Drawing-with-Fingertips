@@ -1,6 +1,6 @@
 <template>
-  <div class="border rounded p-4 bg-white w-[360px]">
-    <h2 class="font-semibold">风格库</h2>
+  <div :class="embedded ? 'w-full' : 'w-[360px] rounded-card border border-line bg-surface p-4 shadow-soft'">
+    <h2 v-if="!embedded" class="font-semibold">风格库</h2>
 
     <p v-if="!store.styleResults.length" class="mt-2 text-sm text-gray-400">
       风格清单加载中…也可以直接跟 AI 说「把它变成国风」
@@ -10,18 +10,18 @@
       <button
         v-for="item in store.styleResults"
         :key="item.id"
-        class="w-full rounded border p-2 text-left text-xs transition hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50"
+        class="w-full rounded-xl border border-line p-2.5 text-left text-xs transition hover:border-sage/40 hover:bg-sage-soft/50 disabled:opacity-50"
         :disabled="busy"
         @click="pick(item)"
       >
         <div class="flex justify-between gap-2">
-          <span class="font-semibold text-gray-800">{{ item.title }}</span>
-          <span class="font-mono text-gray-400">{{ item.score.toFixed(2) }}</span>
+          <span class="font-semibold text-ink">{{ item.title }}</span>
+          <span v-if="item.score > 0" class="font-mono text-muted">{{ item.score.toFixed(2) }}</span>
         </div>
 
-        <p class="mt-1 line-clamp-2 text-gray-500">{{ item.prompt }}</p>
+        <p class="mt-1 line-clamp-2 text-muted">{{ item.prompt }}</p>
 
-        <p class="mt-1 text-gray-400">来源：{{ item.source }}</p>
+        <p v-if="!embedded" class="mt-1 text-muted/70">来源：{{ item.source }}</p>
       </button>
     </div>
 
@@ -30,6 +30,8 @@
 </template>
 
 <script setup lang="ts">
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+
 const store = useAgentStore()
 const { runAction } = useAgent()
 

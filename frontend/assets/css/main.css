@@ -1,5 +1,70 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+
+  --color-paper: #f6f1e7;
+  --color-surface: #fffcf5;
+  --color-surface-2: #efe7d8;
+  --color-ink: #2f2b25;
+  --color-muted: #6b6459;
+  --color-line: #e2d8c7;
+  --color-sage: #4f735f;
+  --color-sage-strong: #42624f;
+  --color-sage-soft: #e5efe7;
+  --color-peach: #c98363;
+  --color-danger: #a34f43;
+
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+  --shadow-soft: 0 8px 24px rgb(60 50 40 / 0.08);
+}
+
+html,
+body,
+#__nuxt {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: #cfe0d2;
+  color: var(--color-ink);
+}
+
+/* 页面切换：淡入淡出，不做位移，避免感官负担 */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+
 /*
  * 感官友好模式
  *
@@ -26,16 +91,27 @@
 
 /* 2. 纯白卡片和页面底色改成温暖的米色 */
 .sensory-friendly .bg-white,
-.sensory-friendly .bg-white\/95 {
+.sensory-friendly .bg-white\/95,
+.sensory-friendly .bg-surface {
   background-color: var(--sensory-surface) !important;
 }
 
+.sensory-friendly .bg-paper,
 .sensory-friendly .bg-gray-100 {
   background-color: var(--sensory-page) !important;
 }
 
+.sensory-friendly .bg-surface-2,
 .sensory-friendly .bg-gray-200 {
   background-color: var(--sensory-muted) !important;
+}
+
+.sensory-friendly .text-ink {
+  color: var(--sensory-ink) !important;
+}
+
+.sensory-friendly .border-line {
+  border-color: #e4dccd !important;
 }
 
 /* 3. 纯黑/近黑文字降低对比度 */

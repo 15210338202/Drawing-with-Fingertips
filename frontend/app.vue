@@ -15,7 +15,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="min-h-screen"
+    class="min-h-screen bg-paper text-ink"
     :class="{ 'sensory-friendly': appStore.isSensoryFriendly }"
   >
     <NuxtPage />
