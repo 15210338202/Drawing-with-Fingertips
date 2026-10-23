@@ -136,7 +136,7 @@ const cursorVisible = ref(false)
 const cursorDrawing = computed(() => gesture.state === 'drawing')
 
 /** 视觉插值系数：0.35 在 60FPS 下 3 帧到 72%、6 帧到 92%，跟手又不抖 */
-const CURSOR_LERP = 0.35
+const CURSOR_LERP = 0.7
 
 /** 平滑后的归一化位置：只在 rAF 里读写，不需要响应式 */
 const cursorPos = { x: 0.5, y: 0.5 }

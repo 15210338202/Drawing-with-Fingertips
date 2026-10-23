@@ -167,6 +167,7 @@ import { useCalibrationStore } from '~/stores/calibration'
 import { useAgentStore } from '~/stores/agent'
 import type { StyleResult } from '~/stores/agent'
 import { useTTS } from '~/composables/useTTS'
+import { OneEuroFilter } from '~/utils/oneEuroFilter'
 
 const gesture = useGestureStore()
 const calibration = useCalibrationStore()
@@ -192,8 +193,37 @@ const {
   perfSnapshot,
 } = useHandTracking()
 
-/** 滑动平均：x、y 各自独立缓冲 */
-const { smoothX, smoothY, reset: resetSmoothing } = useSmoothing()
+/**
+ * R5：食指尖的 One Euro Filter，x/y 各一个实例。
+ *
+ * 这里的坐标是 0–1 的归一化坐标，速度数值比“像素/秒”小约 1000 倍；
+ * beta 按屏幕宽度 1000px 换算，快速移动时才把截止频率抬起来。
+ *
+ * minCutoff 从 1.2 提到 3.0：30FPS 下 1.2 的阶跃响应 90% 要 10 帧（约 330ms），
+ * 画线会明显“追着手指尾巴走”。3.0 仍然是平滑滤波，但 90% 约 4–5 帧，
+ * 先把响应换回来；如果静止时抖动明显，再把 minCutoff 往 2.4 回调。
+ */
+const ONE_EURO_MIN_CUTOFF = 3
+const ONE_EURO_BETA = 12
+const xFilter = new OneEuroFilter(ONE_EURO_MIN_CUTOFF, ONE_EURO_BETA)
+const yFilter = new OneEuroFilter(ONE_EURO_MIN_CUTOFF, ONE_EURO_BETA)
+/** 上一帧是否在 drawing：只在上升沿清滤波，避免每帧都清掉平滑 */
+let wasDrawing = false
+
+/** 清空滤波历史：抬笔、丢手、换主手、关摄像头时用 */
+function resetSmoothing() {
+  xFilter.reset()
+  yFilter.reset()
+}
+
+/** 同一帧的 x/y 必须用同一个时间戳，否则两个轴的自适应速度会不同步 */
+function smoothPoint(point: Point): Point {
+  const now = performance.now()
+  return {
+    x: xFilter.filter(point.x, now),
+    y: yFilter.filter(point.y, now),
+  }
+}
 
 /** 手势状态机：捏合进入绘制、松开退出、握拳清空 */
 const {
@@ -509,18 +539,20 @@ let lastDetectTs = 0
 let lastMainHandedness: DetectedHand['handedness'] | null = null
 
 /**
- * 抓帧的帧率上限（推理吞吐由 Worker 决定，这里只限制「最多多久抓一帧」）。
- * 不按“每 2 帧处理一次”来卡：rAF 是跟着显示器刷新的（通常 60Hz），摄像头可能是 30 也可能是 60fps，
- * 按时间间隔卡才是稳定的 30 FPS。
+ * 抓帧的帧率上限。
+ * 60 会让普通室内摄像头把曝光时间砍半：画面变暗、运动模糊变重，
+ * MediaPipe 的掌部检测置信度跟着掉，于是出现“经常识别不到手”。
+ * 先固定回 30，优先保证识别稳定；性能优化必须在曝光不变的前提下做。
  */
 const MIN_FRAME_INTERVAL = 1000 / 30
 
 /**
  * 送去推理的画面最大宽度。
- * 480 宽已经远超 MediaPipe 的模型输入，但比 640 少四成像素，
- * 解码、结构化传输、模型预处理的耗时都会跟着降；不做放大，避免画幅小时白费算力。
+ * MediaPipe 的模型输入只有 224/256，480 宽是在给它喂用不上的像素；
+ * 320 宽既保留足够的手部细节，又把解码/传输/预处理的像素量降到约 44%。
+ * 这是当前“点位跟不上手”最直接的一刀，先降分辨率，不动识别算法。
  */
-const DETECT_MAX_WIDTH = 480
+const DETECT_MAX_WIDTH = 320
 
 /**
  * 把真实画幅的宽高比写进手势 store。
@@ -552,7 +584,14 @@ async function startCamera() {
 
   try {
     const mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' },
+      // 不用 60：普通室内摄像头为了跑 60fps 会缩短曝光，手一快就糊，
+      // 掌部检测会频繁丢手。30fps 的曝光更稳，识别率优先。
+      video: {
+        width: 640,
+        height: 480,
+        facingMode: 'user',
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     })
 
@@ -631,16 +670,18 @@ function captureFrame() {
   const resizeWidth = Math.max(1, Math.round(video.videoWidth * scale))
   const resizeHeight = Math.max(1, Math.round(video.videoHeight * scale))
 
-  // Worker 里没有 DOM，拿不到 <video>，所以先抓成一帧位图再转移过去
-  createImageBitmap(video, { resizeWidth, resizeHeight, resizeQuality: 'medium' })
+  // Worker 里没有 DOM，拿不到 <video>，所以先抓成一帧位图再转移过去。
+  // 用 low：手部关键点不需要相册级锐度，这里是每帧都跑的热路径，省的是真金白银。
+  createImageBitmap(video, { resizeWidth, resizeHeight, resizeQuality: 'low' })
     .then((bitmap) => {
       if (!isActive.value) {
         // 抓图这段时间里摄像头被关了，这张图没人接手，自己关掉
         bitmap.close()
         return
       }
-      // detect() 之后可能立刻转移给 Worker，也可能先进待发槽，close 由那边统一负责
-      detect(bitmap, performance.now())
+      // 用“发起抓帧”的时间，而不是 bitmap resolve 的时间：
+      // 这样旧图晚到时能按真实捕获顺序被丢弃，结果时间也对应实际画面。
+      detect(bitmap, now)
     })
     .catch((err) => {
       captureError.value = `抓帧失败：${(err as Error | undefined)?.message ?? String(err)}`
@@ -739,8 +780,8 @@ const SAMPLE_INTERVAL = 1000 / 30
  * 存的是「镜像翻转 → 透视校正 → 平滑」后的 0–1 坐标，画布那边再乘自己的 width/height。
  *
  * 写两个位置：
- * - hoverPoint：只要有手就写（不依赖捏合），给悬停准星跟随用；用未平滑的值，
- *   视觉平滑交给画布那边的 Lerp（那边是 60FPS 渲染，比在这里按 30FPS 平滑更跟手）；
+ * - hoverPoint：只要有手就写（不依赖捏合），给悬停准星跟随用；和 lastPoint 共用
+ *   同一份 One Euro 结果，准星和笔迹不会分叉（画布那边还有一层 60FPS 的 rAF 插值）；
  * - lastPoint：只有 drawing 状态才写，松手/丢手写 null 让画布断开笔画。
  *
  * 标定模式下走另一条分支：用**未做透视校正**的镜像坐标，这样食指能和屏幕上的红点对上；
@@ -758,28 +799,39 @@ function syncIndexFingertip(points: { x: number, y: number }[] | null) {
   if (calibrating.value) {
     advanceCalibration(raw)
     gesture.setHoverPoint(raw)
-    // 标定期间不落笔：否则采集过程会在画布上留下乱线
+    // 标定期间不落笔，也不让滤波历史影响标定点：红点必须和屏幕上的实际指尖重合
     resetSmoothing()
+    wasDrawing = false
     gesture.setLastPoint(null)
     return
   }
+
+  if (!raw) {
+    resetSmoothing()
+    wasDrawing = false
+    gesture.setHoverPoint(null)
+    gesture.setLastPoint(null)
+    return
+  }
+
+  // 刚捏合落笔时清一次滤波历史：否则 hover 阶段攒下的平滑滞后会原样带进笔画，
+  // 表现为“笔尖先慢半拍再追”。只在 idle → drawing 的上升沿清，不会影响连续画线。
+  const drawingNow = gestureState.value === 'drawing'
+  if (drawingNow && !wasDrawing) resetSmoothing()
+  wasDrawing = drawingNow
 
   // 透视校正后的坐标：准星和笔迹都用它，两者才能始终重合
-  const mapped = raw ? mapPoint(raw) : null
-  gesture.setHoverPoint(mapped)
+  const mapped = mapPoint(raw)
+  // R5：滤波放在透视之后，存的都是同一套画布坐标；准星和笔迹共用同一个滤波结果
+  const smoothed = smoothPoint(mapped)
+  gesture.setHoverPoint(smoothed)
 
-  // 待机、手丢了、松开手指，都等于抬笔：
-  // 必须写 null 断开笔画，否则画布会把上一笔的末尾和下一笔的起点连成一条长线。
-  if (!mapped || gestureState.value !== 'drawing') {
-    // 顺便清空平滑缓冲，否则下一笔起点会被上一笔末尾“粘”住
-    resetSmoothing()
+  // 待机、松开手指都等于抬笔：必须写 null 断开笔画，
+  // 否则画布会把上一笔的末尾和下一笔的起点连成一条长线。
+  if (gestureState.value !== 'drawing') {
     gesture.setLastPoint(null)
     return
   }
-
-  // 平滑放在校正之后：缓冲区里存的应该是一致的画布坐标，不能一半原始一半校正
-  const x = smoothX(mapped.x)
-  const y = smoothY(mapped.y)
 
   // 【临时采集代码，实验结束后删除】存的就是真正画到画布上的那个值（已翻转、已校正、已平滑）
   const now = performance.now()
@@ -788,11 +840,11 @@ function syncIndexFingertip(points: { x: number, y: number }[] | null) {
 
     if (typeof window !== 'undefined') {
       ;(window as any).__fingerTrace = (window as any).__fingerTrace || []
-      ;(window as any).__fingerTrace.push({ t: now, x, y })
+      ;(window as any).__fingerTrace.push({ t: now, x: smoothed.x, y: smoothed.y })
     }
   }
 
-  gesture.setLastPoint({ x, y })
+  gesture.setLastPoint(smoothed)
 }
 
 /** 关闭摄像头：释放设备，并清掉上一次的错误提示 */

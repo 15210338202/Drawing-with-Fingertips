@@ -1,4 +1,5 @@
 import type { DetectRequest, DetectedHand, HandLandmark, WorkerResponse } from '~/workers/hand.worker'
+import { isGeometricallyValid } from '~/utils/handGeometry'
 
 export type { DetectedHand, HandLandmark }
 
@@ -8,6 +9,16 @@ export type { DetectedHand, HandLandmark }
  */
 const PERF_ENABLED = typeof location !== 'undefined'
   && (import.meta.dev || new URLSearchParams(location.search).has('perf'))
+
+/**
+ * R6 几何过滤默认关闭，先用回 R6 之前的识别链路。
+ *
+ * 原因：真实 OK/捏合手型会被“四指骨长关系”误杀——MediaPipe 明明返回了手，
+ * 过滤后 hands 变成空数组，界面就显示“未检测到手”，第二只手出现时还会顶替主手。
+ * 代码保留，方便以后继续调规则；要重新测试过滤，在 URL 加 ?r6=1。
+ */
+const R6_ENABLED = typeof location !== 'undefined'
+  && new URLSearchParams(location.search).has('r6')
 
 /** 秒级样本最多留 300 条（约 5 分钟）；相邻完成帧间隔最多留 240 条（约 8 秒）—— 都是有界缓冲，长跑不会吃内存 */
 const PERF_MAX_FPS_SAMPLES = 300
@@ -20,6 +31,15 @@ const PERF_MAX_INTERVALS = 240
  * 立刻清空会让下一帧的“另一只手”被当成主手，画布上就会出现横跳的笔迹。
  */
 const MAIN_HAND_LOST_MS = 1000
+
+/**
+ * R6：几何过滤全部拒绝时，上一帧“有效手”最多再显示这么久。
+ *
+ * 不能一帧不合格就立刻清空：MediaPipe 偶尔抖一帧，清空会让准星/覆盖层闪烁。
+ * 但也不能无限保留：正常手被 R6 连续误杀时，旧关键点会冻结在画面上，
+ * 看起来像“点位不跟手/延迟”，实际是过滤后没有更新 hands。超过这个宽限期就清空。
+ */
+const STALE_HAND_GRACE_MS = 250
 
 /**
  * R4：最近邻匹配时，给 handedness 与上一帧不一致的手加的惩罚（归一化坐标单位）。
@@ -95,6 +115,16 @@ export function useHandTracking() {
    * 之前是 busy 时整帧丢弃，等于把有效帧率砍掉一半，快速移动时手在两帧之间已经跑远。
    */
   let pending: { bitmap: ImageBitmap, timestamp: number } | null = null
+
+  /** 上一次通过 R6 并真正更新 hands 的时刻；0 表示还没有有效帧 */
+  let lastValidAt = 0
+
+  /**
+   * 最近一次真正入队的帧时间戳。
+   * createImageBitmap 是异步的，连续抓帧时旧图可能比新图晚 resolve；
+   * 不挡住的话，旧图会覆盖待发槽里的新图，关键点会向后跳一帧。
+   */
+  let lastQueuedTs = 0
 
   /**
    * 性能计数器。故意做成普通对象而不是 ref：
@@ -328,8 +358,35 @@ export function useHandTracking() {
           // 否则 CameraPreview 的 watch 可能读到「新 hands + 旧 mainHand」的组合。
           // ?? [] 兜住旧 Worker 缓存/HMR 残留的旧格式消息，避免一帧 undefined 把选主手打崩。
           const detected = message.hands ?? []
-          hands.value = detected
-          mainHand.value = selectMainHand(detected, performance.now())
+
+          // R6：Worker 只保证点数够 21，管不了“肉色被子/后脑勺”凑出来的假手。
+          // 默认关闭（见文件顶部 R6_ENABLED）：真实 OK/捏合手型会被几何规则误杀。
+          const valid = R6_ENABLED
+            ? detected.filter(hand => isGeometricallyValid(hand.landmarks))
+            : detected
+
+          if (valid.length === 0) {
+            busy.value = false
+            if (PERF_ENABLED) noteFrameDone()
+            // 推理槽必须继续转，否则一次误检会让识别永久停摆
+            flushPending()
+
+            const now = performance.now()
+            // 真的没检测到手：立即清空。
+            // 不要在这里“保留上一帧”等下一帧：45FPS 下保留 120ms 就是 5 帧冻结，
+            // 手回来时笔迹会从旧点直接连到新点，形成一条很直的跳线。
+            // 单帧漏检导致的断笔，应该在笔画层做极短的桥接，而不是冻结点位。
+            if (detected.length === 0 || now - lastValidAt > STALE_HAND_GRACE_MS) {
+              hands.value = []
+              mainHand.value = selectMainHand([], now)
+            }
+            return
+          }
+
+          const now = performance.now()
+          lastValidAt = now
+          hands.value = valid
+          mainHand.value = selectMainHand(valid, now)
           busy.value = false
           if (PERF_ENABLED) noteFrameDone()
           // 推理期间攒下的最新一帧立刻补发 —— 这一句是把有效帧率提上去的关键
@@ -419,6 +476,13 @@ export function useHandTracking() {
       return
     }
 
+    // 旧图晚 resolve：直接丢掉，否则会把已经排队的新图顶掉，关键点向后跳
+    if (timestamp <= lastQueuedTs) {
+      imageBitmap.close()
+      return
+    }
+    lastQueuedTs = timestamp
+
     // 覆盖旧帧前先 close，否则旧的那张会一直占着显存
     clearPending()
     pending = { bitmap: imageBitmap, timestamp }
@@ -445,6 +509,8 @@ export function useHandTracking() {
     mainHandedness = null
     lastPalm = null
     lastSeenAt = 0
+    lastValidAt = 0
+    lastQueuedTs = 0
 
     // 计数器跟着会话复位：重新开摄像头要重新采样，不然 p95 会混进上一次的数据
     if (PERF_ENABLED) {

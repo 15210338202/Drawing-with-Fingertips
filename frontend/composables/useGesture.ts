@@ -187,6 +187,13 @@ const THUMBS_UP_THUMB_RATIO = 0.55
 const THUMBS_UP_CURL_RATIO = 0.4
 /** 👍 判定：拇指尖至少要比拇指根高这么多掌长，避免拇指横着指也算 */
 const THUMBS_UP_RISE_RATIO = 0.08
+/**
+ * 👍 判定：拇指尖必须离食指根(5)足够远。
+ * 攥拳、拳心朝屏幕时，拇指是横压在四指上的：4→2 的距离仍然很长（看起来“伸直”），
+ * 指尖也可能比拇指根高，单看 thumbRatio + rise 会误判成 👍。
+ * 但此时拇指尖贴着食指根，clearance 很小；真正竖起的拇指尖会离开拳头轮廓。
+ */
+const THUMBS_UP_CLEARANCE_RATIO = 0.42
 
 export interface ThumbsUpReading {
   isThumbsUp: boolean
@@ -196,7 +203,9 @@ export interface ThumbsUpReading {
   fingerRatio: number
   /** (拇指根.y - 拇指尖.y) ÷ 掌长；正数表示拇指尖朝上 */
   rise: number
-  reason: 'ok' | 'thumb' | 'fingers' | 'direction' | 'no-hand'
+  /** 拇指尖→食指根(5) ÷ 掌长；越大说明拇指越伸出拳头 */
+  thumbClearance: number
+  reason: 'ok' | 'thumb' | 'fingers' | 'clearance' | 'direction' | 'no-hand'
 }
 
 /**
@@ -218,6 +227,7 @@ export function checkThumbsUp(
       thumbRatio: 0,
       fingerRatio: Number.POSITIVE_INFINITY,
       rise: 0,
+      thumbClearance: 0,
       reason: 'no-hand',
     }
   }
@@ -225,15 +235,17 @@ export function checkThumbsUp(
   const ratio = normalizeAspect(aspect)
   const wrist = landmarks[0]
   const middleMcp = landmarks[9]
+  const indexMcp = landmarks[5]
   const thumbMcp = landmarks[2]
   const thumbTip = landmarks[4]
 
-  if (!wrist || !middleMcp || !thumbMcp || !thumbTip) {
+  if (!wrist || !middleMcp || !indexMcp || !thumbMcp || !thumbTip) {
     return {
       isThumbsUp: false,
       thumbRatio: 0,
       fingerRatio: Number.POSITIVE_INFINITY,
       rise: 0,
+      thumbClearance: 0,
       reason: 'no-hand',
     }
   }
@@ -245,6 +257,7 @@ export function checkThumbsUp(
       thumbRatio: 0,
       fingerRatio: Number.POSITIVE_INFINITY,
       rise: 0,
+      thumbClearance: 0,
       reason: 'no-hand',
     }
   }
@@ -257,6 +270,7 @@ export function checkThumbsUp(
   )
 
   const thumbRatio = distance(thumbTip, thumbMcp, ratio) / palmLength
+  const thumbClearance = distance(thumbTip, indexMcp, ratio) / palmLength
   const rise = (thumbMcp.y - thumbTip.y) / palmLength
 
   // 拇指根→指尖的向量：横向分量不能压倒纵向分量，否则是“横着指”
@@ -266,21 +280,25 @@ export function checkThumbsUp(
 
   const thumbOk = thumbRatio > THUMBS_UP_THUMB_RATIO
   const fingersOk = fingerRatio < THUMBS_UP_CURL_RATIO
+  const clearanceOk = thumbClearance >= THUMBS_UP_CLEARANCE_RATIO
   const directionOk = rise >= THUMBS_UP_RISE_RATIO && isVertical
 
   const reason: ThumbsUpReading['reason'] = !thumbOk
     ? 'thumb'
     : !fingersOk
       ? 'fingers'
-      : !directionOk
-        ? 'direction'
-        : 'ok'
+      : !clearanceOk
+        ? 'clearance'
+        : !directionOk
+          ? 'direction'
+          : 'ok'
 
   return {
-    isThumbsUp: thumbOk && fingersOk && directionOk,
+    isThumbsUp: thumbOk && fingersOk && clearanceOk && directionOk,
     thumbRatio,
     fingerRatio,
     rise,
+    thumbClearance,
     reason,
   }
 }
@@ -505,10 +523,14 @@ export function useGesture() {
     const thumbsUp = checkThumbsUp(landmarks, aspect)
     thumbsUpActive.value = thumbsUp.isThumbsUp
 
-    // 拇指伸着就不算握拳：即使方向判定没过（手有点斜/阈值差一点），
+    // 拇指伸着且离开了拳头轮廓，就不算握拳：即使方向判定没过（手有点斜/阈值差一点），
     // 也不能退回握拳逻辑，否则用户比 👍 没被确认，1 秒后画布反而被清空。
-    // 这里故意不要求四指全部达标——差一点蜷曲的手也该优先当作“不是拳”。
-    const thumbsUpLike = thumbsUp.thumbRatio > THUMBS_UP_THUMB_RATIO
+    // 这里故意不要求四指全部达标——差一点蜷曲的手也该优先当作“不是拳”；
+    // 但必须带 clearance，否则“拳心朝屏幕、拇指横压在四指上”会被当成伸出的拇指，
+    // 既误触发 👍，又绕过握拳清空。
+    const thumbsUpLike =
+      thumbsUp.thumbRatio > THUMBS_UP_THUMB_RATIO
+      && thumbsUp.thumbClearance >= THUMBS_UP_CLEARANCE_RATIO
 
     if (thumbsUp.isThumbsUp) {
       // 这是有意的确认手势，不是要画画，也不是要清空画布
