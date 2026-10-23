@@ -13,11 +13,12 @@
  */
 
 import { onScopeDispose, ref } from 'vue'
+import { useAppStore } from '~/stores/app'
 
 export interface SpeakOptions {
-  /** 语速，0.5–2，默认 0.95（比新闻播报慢一点，更自然） */
+  /** 语速，0.5–2，默认 0.95；感官友好模式下会被压到不超过 0.8 */
   rate?: number
-  /** 音调，0–2，默认 1.05（稍微柔和一点，不机械） */
+  /** 音调，0–2，默认 1.05；感官友好模式下固定为 1.0 */
   pitch?: number
   /** 音量，0–1，默认 1 */
   volume?: number
@@ -152,6 +153,7 @@ function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
 }
 
 export function useTTS() {
+  const appStore = useAppStore()
   /** 是否正在念；只用于界面上的小状态，不参与业务判断 */
   const speaking = ref(false)
   /** 当前这条，用来忽略被 cancel 掉的旧回调和还没开始就过期的等待 */
@@ -203,8 +205,10 @@ export function useTTS() {
     }
 
     utterance.lang = options.lang ?? 'zh-CN'
-    utterance.rate = clamp(options.rate ?? 0.95, 0.5, 2)
-    utterance.pitch = clamp(options.pitch ?? 1.05, 0, 2)
+    // 感官友好模式下语速更慢、音调更平；调用方显式传的 rate/pitch 也要让位。
+    const sensoryFriendly = appStore.isSensoryFriendly
+    utterance.rate = clamp(sensoryFriendly ? Math.min(options.rate ?? 0.8, 0.8) : (options.rate ?? 0.95), 0.5, 2)
+    utterance.pitch = clamp(sensoryFriendly ? 1 : (options.pitch ?? 1.05), 0, 2)
     utterance.volume = clamp(options.volume ?? 1, 0, 1)
 
     current = utterance
