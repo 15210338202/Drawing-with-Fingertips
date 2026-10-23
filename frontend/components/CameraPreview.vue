@@ -5,7 +5,8 @@
     <!-- 预览区域：宽高比跟随真实画幅（而不是写死 4:3），否则 object-contain 会加黑边、
          红点和关键点覆盖层就跟画面内容错位 -->
     <div
-      class="relative mt-2 w-[640px] max-w-full bg-gray-200 flex items-center justify-center overflow-hidden rounded"
+      class="relative mt-2 w-[640px] max-w-full bg-gray-200 flex items-center justify-center overflow-hidden rounded transition-shadow duration-200"
+      :class="thumbsUpFlash ? 'ring-4 ring-emerald-400' : ''"
       :style="{ aspectRatio: String(gesture.cameraAspect || 4 / 3) }"
     >
       <!-- 画面镜像：摄像头看到的是"对面的人"，不镜像时用户往右挥手、画面里往左动，
@@ -61,6 +62,16 @@
         </div>
       </template>
 
+      <!-- 👍 触发反馈：绿光 + 顶部提示。生成中/失败也复用这一条，避免用户不知道请求已经发出 -->
+      <div
+        v-if="thumbsUpNotice"
+        class="pointer-events-none absolute left-1/2 top-2 z-20 max-w-[92%] -translate-x-1/2 rounded-full px-3 py-1 text-center text-xs font-medium text-white shadow-lg"
+        :class="thumbsUpNoticeClass"
+        aria-live="polite"
+      >
+        {{ thumbsUpNotice }}
+      </div>
+
       <!-- 性能 HUD：只在 ?perf=1 时出现，暂留作调参用，验收完再决定留还是删 -->
       <pre
         v-if="showPerf"
@@ -102,7 +113,12 @@
 
       <!-- 手势状态：调滑杆的时候靠它确认到底有没有判定成捏合 -->
       <span v-if="isActive && ready && landmarks" class="text-sm" :class="gestureState === 'drawing' ? 'text-blue-600' : 'text-gray-500'">
-        {{ gestureState === 'drawing' ? '绘制中（已捏合）' : '待机：捏合开始画，握拳 1 秒清空' }}
+        {{ gestureState === 'drawing' ? '绘制中（已捏合）' : '待机：捏合画，握拳清空，👍 生成' }}
+      </span>
+
+      <!-- 状态机确认前就先给个提示，用户能知道“比对了、再保持一下” -->
+      <span v-if="isActive && ready && thumbsUp" class="text-sm text-emerald-600">
+        👍 已识别，保持一下…
       </span>
 
       <!-- 透视校正：4 点标定，解决边缘画线变歪 / 斜向漂移。
@@ -148,9 +164,15 @@ import type { DetectedHand } from '~/workers/hand.worker'
 // 显式导入 store，不依赖 Pinia 的目录扫描：新加的 store 文件需要重启 dev server 才会被自动导入，
 // 否则 useCalibrationStore 是 undefined，整个组件 setup 直接抛错（表现为按钮点了没反应）
 import { useCalibrationStore } from '~/stores/calibration'
+import { useAgentStore } from '~/stores/agent'
+import type { StyleResult } from '~/stores/agent'
+import { useTTS } from '~/composables/useTTS'
 
 const gesture = useGestureStore()
 const calibration = useCalibrationStore()
+const agent = useAgentStore()
+const { runAction } = useAgent()
+const { speak, stop: stopSpeaking } = useTTS()
 
 /**
  * 手部关键点识别：推理跑在 Worker 里，结果异步写进 hands / mainHand。
@@ -178,11 +200,17 @@ const {
   state: gestureState,
   update: updateGesture,
   onClear,
+  onThumbsUp,
+  thumbsUp,
   reset: resetGesture,
 } = useGesture()
 
 // 握拳清空通过 store 计数器通知画布，不直接调 canvas 的方法，两边保持解耦
 onClear(() => gesture.requestClear())
+
+// 👍 的“业务”放在这里：状态机只负责确认“用户确实比了一个 👍”，
+// 具体用哪张画、哪个风格、要不要防重入，都是页面这层的事。
+onThumbsUp(() => { void handleThumbsUp() })
 
 /** <video> 元素，MediaStream 挂到它的 srcObject 上 */
 const videoEl = ref<HTMLVideoElement | null>(null)
@@ -195,6 +223,133 @@ const isStarting = ref(false)
 const errorMessage = ref('')
 /** 抓帧失败（createImageBitmap 报错）的提示 */
 const captureError = ref('')
+
+// ===== 👍 → 生图 =====
+/** 顶部提示条；生成中/成功/失败都走它，比只在 console 里打日志更容易看见 */
+const thumbsUpNotice = ref('')
+type ThumbsUpNoticeTone = 'info' | 'success' | 'warn' | 'error'
+const thumbsUpNoticeTone = ref<ThumbsUpNoticeTone>('info')
+/** 触发瞬间给预览框加一圈绿光 */
+const thumbsUpFlash = ref(false)
+/** 防重入：runAction 直接调 generate_image 时不会设置 agent.executing，得自己锁 */
+const generatingByThumbsUp = ref(false)
+let thumbsUpNoticeTimer: ReturnType<typeof setTimeout> | null = null
+let thumbsUpFlashTimer: ReturnType<typeof setTimeout> | null = null
+
+const thumbsUpNoticeClass = computed(() => ({
+  info: 'bg-gray-900/80',
+  success: 'bg-emerald-600/90',
+  warn: 'bg-amber-500/90',
+  error: 'bg-red-600/90',
+}[thumbsUpNoticeTone.value]))
+
+/** 提示文字太长会把预览遮住，截断到 80 字；完整原因仍可在 console 看 */
+function showThumbsUpNotice(
+  text: string,
+  tone: ThumbsUpNoticeTone = 'info',
+  autoClearMs = 4000,
+) {
+  thumbsUpNotice.value = text.length > 80 ? `${text.slice(0, 80)}…` : text
+  thumbsUpNoticeTone.value = tone
+
+  if (thumbsUpNoticeTimer) clearTimeout(thumbsUpNoticeTimer)
+  thumbsUpNoticeTimer = null
+
+  if (autoClearMs > 0) {
+    thumbsUpNoticeTimer = setTimeout(() => {
+      thumbsUpNotice.value = ''
+    }, autoClearMs)
+  }
+}
+
+function flashThumbsUp() {
+  thumbsUpFlash.value = true
+  if (thumbsUpFlashTimer) clearTimeout(thumbsUpFlashTimer)
+  thumbsUpFlashTimer = setTimeout(() => {
+    thumbsUpFlash.value = false
+  }, 1200)
+}
+
+/** 当前风格：优先上次生成用的，否则风格列表第一条；没有风格就让服务端走默认 */
+function preferredStyle(): StyleResult | null {
+  return agent.styleResults.find(item => item.id === agent.lastStyleKey)
+    ?? agent.styleResults[0]
+    ?? null
+}
+
+/**
+ * 👍 确认后的业务入口。
+ *
+ * 直接走 useAgent 的 generate_image，而不是自己再拼一遍 /api/generate：
+ * 这条链路已经处理了“画布导出 → 白底 PNG → styleKey / promptOverride → 占位图兜底”，
+ * 也绕开 LLM，少了十几秒的对话往返。
+ */
+async function handleThumbsUp() {
+  if (generatingByThumbsUp.value) {
+    showThumbsUpNotice('👍 正在生成，画完这一张再比', 'warn')
+    return
+  }
+
+  if (agent.loading || agent.streaming || agent.executing) {
+    showThumbsUpNotice('AI 正在忙，等它完成再比 👍', 'warn')
+    return
+  }
+
+  if (!agent.hasSketch) {
+    showThumbsUpNotice('先画几笔，再比 👍 生成', 'warn')
+    return
+  }
+
+  const style = preferredStyle()
+  generatingByThumbsUp.value = true
+  flashThumbsUp()
+  showThumbsUpNotice(
+    style ? `👍 收到，用「${style.title}」生成中…` : '👍 收到，生成中…',
+    'success',
+    0,
+  )
+  // 先给一句语音反馈，再发请求；生成本身要等几秒，声音能让用户确认“手势已经生效”
+  speak('好嘞，马上为你变魔法！')
+
+  try {
+    const message = await runAction({
+      tool: 'generate_image',
+      args: {
+        styleKey: style?.id ?? '',
+        strength: 0.6,
+      },
+    })
+
+    const done = message.startsWith('生成完成')
+    showThumbsUpNotice(
+      done ? '👍 生成完成，点画布上的“贴回画布”查看' : `👍 ${message}`,
+      done ? 'success' : 'warn',
+      6000,
+    )
+  } catch (err) {
+    console.error('[thumbs-up] 生成失败：', err)
+    const reason = (err as Error | undefined)?.message ?? String(err)
+    showThumbsUpNotice(`👍 生成失败：${reason}`, 'error', 7000)
+  } finally {
+    generatingByThumbsUp.value = false
+  }
+}
+
+/** 关摄像头/卸载时把提示和计时器一起收掉，避免 setTimeout 在组件销毁后写 ref */
+function clearThumbsUpFeedback() {
+  thumbsUpNotice.value = ''
+  thumbsUpFlash.value = false
+  if (thumbsUpNoticeTimer) {
+    clearTimeout(thumbsUpNoticeTimer)
+    thumbsUpNoticeTimer = null
+  }
+  if (thumbsUpFlashTimer) {
+    clearTimeout(thumbsUpFlashTimer)
+    thumbsUpFlashTimer = null
+  }
+  // 关摄像头/离开页面时把没念完的反馈语音也停掉
+  stopSpeaking()
+}
 
 /** 模板里只显示一条错误，模型错误优先 */
 const statusError = computed(() => trackingError.value || captureError.value)
@@ -685,6 +840,9 @@ function releaseStream() {
   gesture.setLastPoint(null)
   // 准星也要跟着消失，否则会定格在画面里最后一个位置
   gesture.setHoverPoint(null)
+
+  // 👍 的提示/绿光/计时器一起收掉；生成请求本身继续跑完，由 finally 解锁
+  clearThumbsUpFeedback()
 
   // 标定做到一半就关摄像头：退出标定模式，否则红点会挂在一个没有画面的框上
   calibrating.value = false

@@ -272,11 +272,31 @@ function describeError(err: unknown) {
     return `上游请求超时（${UPSTREAM_TIMEOUT / 1000} 秒）`
   }
 
+  // undici 的连接超时不会体现在 FetchError.message 里，只会藏在 cause；
+  // 不单独识别的话，前端只能看到一串 "[POST] https://..."，误以为是业务错误。
+  const cause = error?.cause as { code?: string, name?: string, message?: string } | undefined
+  if (
+    cause?.code === 'UND_ERR_CONNECT_TIMEOUT'
+    || cause?.name === 'ConnectTimeoutError'
+    || /connect timeout/i.test(cause?.message ?? '')
+  ) {
+    return '连接 Cloudflare 超时（服务器网络暂时无法访问 api.cloudflare.com）'
+  }
+  if (cause?.code === 'ENOTFOUND' || cause?.code === 'EAI_AGAIN') {
+    return '无法解析 api.cloudflare.com（检查服务器 DNS / 网络）'
+  }
+
   const fromData = extractMessage(error?.data)
   if (fromData) return fromData
 
   const fromCause = extractMessage((error?.cause as { data?: unknown } | undefined)?.data)
   if (fromCause) return fromCause
+
+  // ofetch 的 message 形如 `[POST] "https://api.cloudflare.com/...": <no response>`；
+  // 这串东西对用户没有意义，换成能行动的提示，完整错误仍然由上面的 console.error 记录。
+  if (error?.message?.startsWith('[POST]')) {
+    return '无法连接 Cloudflare 图像服务（检查服务器网络或代理后重试）'
+  }
 
   return error?.message || '调用 Cloudflare Workers AI 失败'
 }

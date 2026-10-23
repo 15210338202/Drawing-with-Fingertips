@@ -121,6 +121,7 @@
 import { lerp, toPercent } from '~/utils/cursor'
 import { DEFAULT_TONE, INSIGHT_TONES } from '~/utils/insight'
 import type { Insight, InsightToneKey } from '~/utils/insight'
+import { useTTS } from '~/composables/useTTS'
 
 const brush = useBrushStore()
 const gesture = useGestureStore()
@@ -348,6 +349,7 @@ function binarizeStrokes(pixels: Uint8ClampedArray) {
 
 // ===== 共情式解读（P2-10）=====
 const { runAction } = useAgent()
+const { speak } = useTTS()
 
 const analyzing = ref(false)
 /** 解读结果；degrade 表示哪一级模型降级了 */
@@ -396,7 +398,19 @@ async function analyzeSketch() {
       timeout: 90000,
     })
 
+    if (!res.success || !res.data) {
+      insightError.value = 'AI 没有返回解读结果，再试一次吧'
+      return
+    }
+
     insight.value = res.data
+
+    // 念“感受 + 邀请”，观察文字留在卡片里；语速稍慢、音调稍高，像陪孩子说话
+    const spoken = [res.data.feeling, res.data.invitation]
+      .map(part => part?.trim())
+      .filter((part): part is string => Boolean(part))
+      .join('。')
+    if (spoken) speak(spoken, { rate: 0.95, pitch: 1.06 })
   }
   catch (err) {
     insightError.value = describeInsightError(err)

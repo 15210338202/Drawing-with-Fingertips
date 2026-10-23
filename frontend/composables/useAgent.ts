@@ -1,4 +1,5 @@
 import { detectCasualIntent } from '~/utils/styles'
+import { useTTS } from '~/composables/useTTS'
 
 /** /api/agent 的响应，契约见 docs/api.md 第 1 节 */
 export interface AgentReply {
@@ -36,6 +37,7 @@ export function useAgent() {
   const store = useAgentStore()
   const brush = useBrushStore()
   const gesture = useGestureStore()
+  const { speak } = useTTS()
 
   /** 当前流式请求的中断句柄；再次提问或点“停止”都要用它 */
   let controller: AbortController | null = null
@@ -184,7 +186,17 @@ export function useAgent() {
           timeout: 90000,
         })
 
+        if (!res.success || !res.data) return '看图失败：AI 没有返回解读结果'
+
         const { observation, feeling, invitation, suggestions } = res.data
+
+        // 猜画是陪孩子看的：把“感受 + 邀请”念出来，观察文字留在对话区慢慢看。
+        // 语速稍慢、音调稍高，避免像导航播报。
+        const spoken = [feeling, invitation]
+          .map(part => part?.trim())
+          .filter((part): part is string => Boolean(part))
+          .join('。')
+        if (spoken) speak(spoken, { rate: 0.95, pitch: 1.06 })
 
         // 一句自然语言回给对话区；建议里第一个顺手做成风格检索，让用户能直接接下一步
         return `${observation}${feeling}想问问你：${invitation}`

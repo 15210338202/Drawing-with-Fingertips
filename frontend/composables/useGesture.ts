@@ -1,3 +1,5 @@
+import { computed, ref } from 'vue'
+import { useGestureStore } from '~/stores/gesture'
 import type { DetectedHand, HandLandmark } from './useHandTracking'
 
 /** 拿不到真实画幅时的兜底宽高比（摄像头默认 640×480） */
@@ -179,6 +181,180 @@ export function checkPinch(
   }
 }
 
+/** 👍 判定：拇指尖(4)→拇指根(2) 的距离 ÷ 掌长，低于它说明拇指没伸直 */
+const THUMBS_UP_THUMB_RATIO = 0.55
+/** 👍 判定：四指指尖→指根的距离 ÷ 掌长，四指都要低于它才算蜷起来 */
+const THUMBS_UP_CURL_RATIO = 0.4
+/** 👍 判定：拇指尖至少要比拇指根高这么多掌长，避免拇指横着指也算 */
+const THUMBS_UP_RISE_RATIO = 0.08
+
+export interface ThumbsUpReading {
+  isThumbsUp: boolean
+  /** 拇指尖→拇指根 ÷ 掌长 */
+  thumbRatio: number
+  /** 四指里最大的 指尖→指根 ÷ 掌长；越小越蜷 */
+  fingerRatio: number
+  /** (拇指根.y - 拇指尖.y) ÷ 掌长；正数表示拇指尖朝上 */
+  rise: number
+  reason: 'ok' | 'thumb' | 'fingers' | 'direction' | 'no-hand'
+}
+
+/**
+ * 👍 几何判定：大拇指伸直朝上，其余四指全部蜷曲。
+ *
+ * 距离都先做 R2 的宽高比修正，再除以掌长 0→9，消除手大手小和离镜头远近的影响。
+ * 拇指方向除了“指尖比指根高”，还要求它大体是竖直的：横着伸出的拇指
+ * （hitchhike 那种）虽然 y 也可能略高一点，但不该触发。
+ *
+ * 返回完整读数而不是只返回 boolean，出问题时能直接看到是拇指、四指还是方向没过。
+ */
+export function checkThumbsUp(
+  landmarks: HandLandmark[] | null | undefined,
+  aspect = DEFAULT_ASPECT,
+): ThumbsUpReading {
+  if (!landmarks || landmarks.length < 21) {
+    return {
+      isThumbsUp: false,
+      thumbRatio: 0,
+      fingerRatio: Number.POSITIVE_INFINITY,
+      rise: 0,
+      reason: 'no-hand',
+    }
+  }
+
+  const ratio = normalizeAspect(aspect)
+  const wrist = landmarks[0]
+  const middleMcp = landmarks[9]
+  const thumbMcp = landmarks[2]
+  const thumbTip = landmarks[4]
+
+  if (!wrist || !middleMcp || !thumbMcp || !thumbTip) {
+    return {
+      isThumbsUp: false,
+      thumbRatio: 0,
+      fingerRatio: Number.POSITIVE_INFINITY,
+      rise: 0,
+      reason: 'no-hand',
+    }
+  }
+
+  const palmLength = distance(wrist, middleMcp, ratio)
+  if (palmLength <= 1e-6) {
+    return {
+      isThumbsUp: false,
+      thumbRatio: 0,
+      fingerRatio: Number.POSITIVE_INFINITY,
+      rise: 0,
+      reason: 'no-hand',
+    }
+  }
+
+  // 四指指尖 → 对应指根；取最大值，四根都蜷住才算 👍
+  const fingerRatio = Math.max(
+    ...[[8, 5], [12, 9], [16, 13], [20, 17]].map(([tip, mcp]) =>
+      distance(landmarks[tip]!, landmarks[mcp]!, ratio) / palmLength,
+    ),
+  )
+
+  const thumbRatio = distance(thumbTip, thumbMcp, ratio) / palmLength
+  const rise = (thumbMcp.y - thumbTip.y) / palmLength
+
+  // 拇指根→指尖的向量：横向分量不能压倒纵向分量，否则是“横着指”
+  const thumbDx = (thumbMcp.x - thumbTip.x) * ratio
+  const thumbDy = thumbMcp.y - thumbTip.y
+  const isVertical = Math.abs(thumbDx) <= Math.abs(thumbDy) * 1.2
+
+  const thumbOk = thumbRatio > THUMBS_UP_THUMB_RATIO
+  const fingersOk = fingerRatio < THUMBS_UP_CURL_RATIO
+  const directionOk = rise >= THUMBS_UP_RISE_RATIO && isVertical
+
+  const reason: ThumbsUpReading['reason'] = !thumbOk
+    ? 'thumb'
+    : !fingersOk
+      ? 'fingers'
+      : !directionOk
+        ? 'direction'
+        : 'ok'
+
+  return {
+    isThumbsUp: thumbOk && fingersOk && directionOk,
+    thumbRatio,
+    fingerRatio,
+    rise,
+    reason,
+  }
+}
+
+export interface ThumbsUpGateOptions {
+  /** 连续多少帧确认，默认 8 帧 */
+  confirmFrames?: number
+  /** 至少持续多少毫秒，避免高帧率下 8 帧太短 */
+  confirmMs?: number
+  /** 触发后的冷却，默认 1.5 秒 */
+  cooldownMs?: number
+}
+
+/**
+ * 👍 一次性消费状态机。
+ *
+ * 单独抽成不依赖 Vue/Pinia 的纯函数，方便直接拿假时间做单元测试：
+ * - 连续 `confirmFrames` 帧且持续 `confirmMs` 才触发；
+ * - 触发一次后 `consumed=true`，手一直比着也不会连发；
+ * - 手势消失才重新武装；
+ * - 冷却时间跨“消失→重新比”保留，防止手抖连发。
+ *
+ * @returns update() 返回 true 的那一帧就是该触发业务的时刻
+ */
+export function createThumbsUpGate(options: ThumbsUpGateOptions = {}) {
+  const confirmFrames = Math.max(1, options.confirmFrames ?? 8)
+  const confirmMs = Math.max(0, options.confirmMs ?? 220)
+  const cooldownMs = Math.max(0, options.cooldownMs ?? 1500)
+
+  /** 本次 👍 第一次出现的时间；null 表示当前没比 👍 */
+  let since: number | null = null
+  let streak = 0
+  let consumed = false
+  /** 上一次真正触发的时间；reset() 不清它，冷却要跨手势保留 */
+  let lastTriggerAt = Number.NEGATIVE_INFINITY
+
+  function update(isThumbsUp: boolean, now = performance.now()) {
+    if (!isThumbsUp) {
+      since = null
+      streak = 0
+      consumed = false
+      return false
+    }
+
+    if (since === null) since = now
+    streak += 1
+
+    if (consumed) return false
+    if (streak < confirmFrames) return false
+    if (now - since < confirmMs) return false
+
+    if (now - lastTriggerAt < cooldownMs) {
+      // 冷却期内又比了一次：这次手势直接作废，不要等冷却结束再“补发”。
+      // 否则用户早就把手放下/去干别的了，请求却在 1.5 秒后突然发出去。
+      // consumed 要等手势消失（update(false)）才复位。
+      consumed = true
+      return false
+    }
+
+    consumed = true
+    lastTriggerAt = now
+    return true
+  }
+
+  /** 手丢失/关摄像头：清掉本次手势，但保留冷却时间 */
+  function reset() {
+    since = null
+    streak = 0
+    consumed = false
+  }
+
+  return { update, reset }
+}
+
 /** 控制台采样节流：500ms 一条，避免 30FPS 把 Console 刷爆 */
 let lastPinchLogAt = 0
 
@@ -218,10 +394,22 @@ export function useGesture() {
   let fistConsumed = false
   /** 外部注册的清空动作 */
   let clearHandler: (() => void) | null = null
+  /** 外部注册的 👍 触发动作 */
+  let thumbsUpHandler: (() => void) | null = null
+
+  /** 当前是否正比着 👍（用于 UI 提示；真正触发与否由 gate 决定） */
+  const thumbsUpActive = ref(false)
+  /** 👍 的一次性消费状态机：连续帧 + 持续时间 + 冷却 + 松开才重新武装 */
+  const thumbsUpGate = createThumbsUpGate()
 
   /** 注册清空回调；具体清什么由调用方决定（我们接的是 store 计数器） */
   function onClear(handler: () => void) {
     clearHandler = handler
+  }
+
+  /** 注册 👍 回调；只有状态机确认后才会调用 */
+  function onThumbsUp(handler: () => void) {
+    thumbsUpHandler = handler
   }
 
   /**
@@ -312,7 +500,30 @@ export function useGesture() {
     store.setPinchDiagnostics?.(pinch.tipDistance, pinch.palmScale, pinch.worldCount)
     logPinch(pinch)
 
-    const isFist = fingerRatio < store.fistThreshold
+    // 👍 必须先于握拳判定：比 👍 时四指也是蜷着的，fist 分支会把它当成握拳，
+    // 握满 1 秒就把画布清空，业务还没触发先清场了。
+    const thumbsUp = checkThumbsUp(landmarks, aspect)
+    thumbsUpActive.value = thumbsUp.isThumbsUp
+
+    // 拇指伸着就不算握拳：即使方向判定没过（手有点斜/阈值差一点），
+    // 也不能退回握拳逻辑，否则用户比 👍 没被确认，1 秒后画布反而被清空。
+    // 这里故意不要求四指全部达标——差一点蜷曲的手也该优先当作“不是拳”。
+    const thumbsUpLike = thumbsUp.thumbRatio > THUMBS_UP_THUMB_RATIO
+
+    if (thumbsUp.isThumbsUp) {
+      // 这是有意的确认手势，不是要画画，也不是要清空画布
+      pinchStreak = 0
+      updateFistClear(false)
+      if (state.value === 'drawing') store.setState('idle')
+      // 到这一帧才真正触发；触发后 consumed 会拦住后续帧，手一直比着也不会连发
+      if (thumbsUpGate.update(true)) thumbsUpHandler?.()
+      return state.value
+    }
+
+    // 没比 👍：清掉本次手势的确认进度，重新武装（冷却时间仍然保留）
+    thumbsUpGate.update(false)
+
+    const isFist = fingerRatio < store.fistThreshold && !thumbsUpLike
 
     // 握拳的优先级高于捏合，而且必须放在捏合判定【前面】：
     // 攥拳的过程中拇指和食指本来就会互相靠近，先走捏合判定的话会先进入 drawing 画出一小段，
@@ -355,10 +566,12 @@ export function useGesture() {
     pinchStreak = 0
     fistSince = null
     fistConsumed = false
+    thumbsUpActive.value = false
+    thumbsUpGate.reset()
     store.setState('idle')
     store.setDebugRatios(0, 0, 0)
     store.setPinchDiagnostics?.(0, 0, 0)
   }
 
-  return { state, update, onClear, reset }
+  return { state, update, onClear, onThumbsUp, thumbsUp: thumbsUpActive, reset }
 }
