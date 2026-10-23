@@ -44,7 +44,14 @@
 
         <p v-if="pasteError" class="max-w-full text-center text-xs text-amber-300">{{ pasteError }}</p>
 
-        <div class="flex gap-2">
+        <div class="flex flex-wrap justify-center gap-2">
+          <button
+            class="rounded bg-emerald-500 px-3 py-1 text-sm text-white disabled:opacity-50"
+            :disabled="savingCard"
+            @click="saveStoryCard"
+          >
+            {{ savingCard ? '制作中...' : '保存故事卡' }}
+          </button>
           <button
             class="rounded bg-blue-500 px-3 py-1 text-sm text-white disabled:opacity-50"
             :disabled="pasting"
@@ -156,6 +163,8 @@ import { lerp, toPercent } from '~/utils/cursor'
 import { DEFAULT_TONE, INSIGHT_TONES } from '~/utils/insight'
 import type { Insight, InsightToneKey } from '~/utils/insight'
 import { useTTS } from '~/composables/useTTS'
+import { generateStoryCard } from '~/utils/storyCard'
+import { buildStoryCaption, condenseInsight } from '~/utils/storyCaption'
 
 const brush = useBrushStore()
 const gesture = useGestureStore()
@@ -216,6 +225,7 @@ function stepCursor() {
 /** 贴回画布时的报错提示（比如生成图有跨域限制，画不进 canvas） */
 const pasteError = ref('')
 const pasting = ref(false)
+const savingCard = ref(false)
 
 let ctx: CanvasRenderingContext2D | null = null
 /** 是否处于“按下并拖动”状态 */
@@ -390,6 +400,13 @@ const analyzing = ref(false)
 const insight = ref<(Insight & { degrade?: string, keywords?: string, costMs?: number }) | null>(null)
 const insightError = ref('')
 const tone = ref<InsightToneKey>(DEFAULT_TONE)
+
+/**
+ * 故事卡底部的正文：
+ * 有 AI 解读时优先用解读（它真的看过画），但压成 1–2 句，避免卡片被长文撑满；
+ * 没有解读时不要写死一句，交给 buildStoryCaption 按画面特征 + 风格现编。
+ */
+const insightStoryText = computed(() => condenseInsight(insight.value))
 
 // ===== 10 秒空闲：邀请生图 =====
 const IDLE_SUGGESTION_MS = 10_000
@@ -621,6 +638,43 @@ function describeInsightError(err: unknown) {
 function closeGenerated() {
   pasteError.value = ''
   agent.setGeneratedImage(null)
+}
+
+/**
+ * 保存作品故事卡。
+ *
+ * 草图用画布原始 toDataURL，而不是送模型的 exportSketch：
+ * exportSketch 会裁白边 + 二值化，适合模型识别，但会把孩子的颜色弄丢。
+ */
+async function saveStoryCard() {
+  if (savingCard.value) return
+
+  const generated = agent.generatedImage
+  const canvas = canvasEl.value
+  if (!generated || !canvas) {
+    pasteError.value = '还没有可保存的作品'
+    return
+  }
+
+  savingCard.value = true
+  pasteError.value = ''
+
+  try {
+    const sketch = canvas.toDataURL('image/png')
+    const style = agent.styleResults.find(item => item.id === agent.lastStyleKey)
+    const styleTitle = style?.title ?? '自由创作'
+    // 没有 AI 解读时，按画面留白/冷暖/风格现编一句；不再固定成同一句。
+    const aiText = insightStoryText.value || buildStoryCaption(canvas, styleTitle)
+
+    await generateStoryCard(sketch, generated, aiText, styleTitle)
+  }
+  catch (err) {
+    console.error('[canvas] 故事卡导出失败：', err)
+    pasteError.value = `故事卡导出失败：${(err as Error)?.message ?? '请重试'}`
+  }
+  finally {
+    savingCard.value = false
+  }
 }
 
 /**
