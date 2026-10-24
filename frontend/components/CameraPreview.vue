@@ -165,12 +165,14 @@ import type { DetectedHand } from '~/workers/hand.worker'
 // 否则 useCalibrationStore 是 undefined，整个组件 setup 直接抛错（表现为按钮点了没反应）
 import { useCalibrationStore } from '~/stores/calibration'
 import { useAgentStore } from '~/stores/agent'
+import { useAppStore } from '~/stores/app'
 import { useTTS } from '~/composables/useTTS'
 import { OneEuroFilter } from '~/utils/oneEuroFilter'
 
 const gesture = useGestureStore()
 const calibration = useCalibrationStore()
 const agent = useAgentStore()
+const app = useAppStore()
 const { runAction } = useAgent()
 const { speak, stop: stopSpeaking } = useTTS()
 
@@ -552,6 +554,12 @@ onMounted(() => {
 
   // 从 localStorage 恢复上次的标定；没标定过就保持 null，映射退化为原样
   calibration.load()
+
+  // 欢迎页已完成权限预检，并通过 Pinia 交接了一次性“自动开摄像头”标记。
+  // 这里消费后启动；直接打开 /studio 时不会自动申请权限。
+  if (app.consumeAutoCameraRequest()) {
+    void startCamera()
+  }
 
   if (!showPerf) return
   perfRafId = requestAnimationFrame(paintPerf)

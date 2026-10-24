@@ -20,12 +20,15 @@
           </p>
 
           <div class="mt-8 flex flex-wrap items-center gap-3">
-            <NuxtLink
-              to="/studio"
-              class="group inline-flex min-h-12 items-center gap-2 rounded-full bg-sage px-6 text-base font-semibold text-white shadow-soft transition-colors hover:bg-sage-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+            <button
+              type="button"
+              class="group inline-flex min-h-12 items-center gap-2 rounded-full bg-sage px-6 text-base font-semibold text-white shadow-soft transition-colors hover:bg-sage-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:cursor-wait disabled:opacity-70"
+              :disabled="entering"
+              @click="enterStudio"
             >
-              进入画室
+              {{ entering ? '正在进入…' : '进入画室' }}
               <svg
+                v-if="!entering"
                 class="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
                 viewBox="0 0 24 24"
                 fill="none"
@@ -38,7 +41,7 @@
                 <path d="M5 12h14" />
                 <path d="m13 6 6 6-6 6" />
               </svg>
-            </NuxtLink>
+            </button>
 
             <a
               href="#how"
@@ -62,7 +65,15 @@
               <path d="M12 3 4.5 6v6c0 4.6 3.2 7.9 7.5 9 4.3-1.1 7.5-4.4 7.5-9V6L12 3Z" />
               <path d="m9 12 2 2 4-4" />
             </svg>
-            摄像头画面只在本机识别，不会上传；进入画室后，由你决定是否开启摄像头。
+            <span>
+              摄像头画面只在本机识别，不会上传。
+              <template v-if="app.autoStartCamera">
+                已开启“自动开启摄像头”：浏览器已授权时会直接进入画室；随时可在设置里关闭。
+              </template>
+              <template v-else>
+                进入画室后，由你决定是否开启摄像头。
+              </template>
+            </span>
           </p>
         </section>
 
@@ -139,12 +150,23 @@
 
 <script setup lang="ts">
 import AppHeader from '~/components/AppHeader.vue'
+import { useAppStore } from '~/stores/app'
+import { useUIStore } from '~/stores/ui'
+
+const app = useAppStore()
+const ui = useUIStore()
+
+const entering = ref(false)
+const autoRedirecting = ref(false)
+
+/** 同一个标签页只自动进一次；否则用户按后退会被立刻弹回画室 */
+const AUTO_ENTERED_KEY = 'autoCameraEntered'
 
 const steps = [
   {
     number: '01',
     title: '开启摄像头',
-    body: '进入画室后点一下“开启摄像头”。画面只在本机识别，不会上传。',
+    body: '进入画室后点一下“开启摄像头”；如果设置里开了自动开启，授权后会直接打开。画面只在本机识别，不会上传。',
   },
   {
     number: '02',
@@ -157,6 +179,104 @@ const steps = [
     body: '比个 👍，或点“让 AI 猜猜”，小绘会帮你生成作品、讲出画里的心情。',
   },
 ]
+
+type CameraPermissionState = 'granted' | 'prompt' | 'denied' | 'unknown'
+
+async function cameraPermissionState(): Promise<CameraPermissionState> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return 'unknown'
+
+  try {
+    const status = await navigator.permissions?.query({ name: 'camera' as PermissionName })
+    if (!status) return 'prompt'
+    return status.state as CameraPermissionState
+  }
+  catch {
+    // Firefox / 部分内嵌浏览器不支持 camera 权限查询；不要自动询问
+    return 'unknown'
+  }
+}
+
+/** 只做权限预检，拿到流后立即释放；真正的预览由 CameraPreview 启动 */
+async function warmUpCamera(): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return false
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    stream.getTracks().forEach(track => track.stop())
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+async function autoEnterIfAllowed() {
+  app.initAutoStartCamera()
+  if (!app.autoStartCamera || autoRedirecting.value || entering.value) return
+
+  // 自动进入只做一次：从画室按后退回来时，保留欢迎页，避免“后退即弹回”的死循环。
+  try {
+    if (window.sessionStorage.getItem(AUTO_ENTERED_KEY) === '1') return
+  }
+  catch {
+    // 隐私模式禁用 sessionStorage 时，退回普通点击进入
+    return
+  }
+  const permission = await cameraPermissionState()
+  if (permission !== 'granted') return
+
+  autoRedirecting.value = true
+  const ok = await warmUpCamera()
+  if (ok) {
+    try {
+      window.sessionStorage.setItem(AUTO_ENTERED_KEY, '1')
+    }
+    catch {
+      // 存不下也继续，最坏情况是后退时再自动进一次
+    }
+    app.requestAutoCamera()
+    await navigateTo('/studio')
+    return
+  }
+
+  // 权限显示已授权但设备/浏览器仍拒绝时，留在欢迎页，等用户点大按钮
+  autoRedirecting.value = false
+}
+
+async function enterStudio() {
+  if (entering.value) return
+  entering.value = true
+
+  try {
+    if (app.autoStartCamera) {
+      const ok = await warmUpCamera()
+      if (ok) {
+        app.requestAutoCamera()
+      }
+      else {
+        // 拒绝授权不能死锁：画布本身支持鼠标/触控板
+        ui.showToast('摄像头没有开启，已进入鼠标/触控板绘画模式。')
+      }
+
+      // 手动进入也算用掉了本次自动进入；按后退时应该能回到欢迎页
+      try {
+        window.sessionStorage.setItem(AUTO_ENTERED_KEY, '1')
+      }
+      catch {
+        // ignore
+      }
+    }
+
+    await navigateTo('/studio')
+  }
+  finally {
+    entering.value = false
+  }
+}
+
+onMounted(() => {
+  void autoEnterIfAllowed()
+})
 </script>
 
 <style scoped>

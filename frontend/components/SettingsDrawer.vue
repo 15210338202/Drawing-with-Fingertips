@@ -56,6 +56,26 @@
                 />
               </span>
             </button>
+            <button
+              class="flex w-full items-center justify-between gap-4 rounded-2xl border border-line bg-surface-2/60 px-4 py-3 text-left transition-colors hover:bg-surface-2"
+              role="switch"
+              :aria-checked="app.autoStartCamera"
+              @click="app.setAutoStartCamera(!app.autoStartCamera)"
+            >
+              <span>
+                <span class="block text-sm font-medium text-ink">自动开启摄像头</span>
+                <span class="mt-0.5 block text-xs leading-5 text-muted">行动不便时，可让摄像头自动开启（需浏览器已授权）。</span>
+              </span>
+              <span
+                class="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                :class="app.autoStartCamera ? 'bg-sage' : 'bg-line'"
+              >
+                <span
+                  class="absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all"
+                  :class="app.autoStartCamera ? 'left-6' : 'left-1'"
+                />
+              </span>
+            </button>
           </section>
 
           <section class="space-y-5">

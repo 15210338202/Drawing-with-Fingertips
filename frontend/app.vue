@@ -10,6 +10,7 @@ const appStore = useAppStore()
  */
 onMounted(() => {
   appStore.initSensoryMode()
+  appStore.initAutoStartCamera()
 })
 </script>
 
