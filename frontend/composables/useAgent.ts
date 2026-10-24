@@ -70,7 +70,8 @@ function spokenFrom(reply: string, lines: string[]): string {
   if (/已打开成长档案/.test(text)) return '已经帮你打开成长档案啦'
   if (/还没有生成作品/.test(text)) return withName(reply || '先画一画，再让我把它变成作品吧')
   if (/故事卡没有保存成功/.test(text)) return '故事卡没有保存成功，再试一次吧'
-  if (/故事卡已保存|作品已导出/.test(text)) return '已经帮你保存好啦'
+  if (/故事卡已存入档案|故事卡已保存/.test(text)) return '已经存进成长档案啦'
+  if (/作品已导出/.test(text)) return '已经帮你导出啦'
   if (/确定要清空/.test(text)) return CLEAR_CONFIRM_TEXT
   if (/已切换/.test(text)) return withName(reply || '已经帮你换好风格啦')
   if (/生成完成/.test(text)) return withName(reply || '已经帮你画好啦')
@@ -170,7 +171,7 @@ export function useAgent() {
         if (!store.storyCardSaver) return '保存失败：画布还没准备好'
 
         const saved = await store.storyCardSaver()
-        return saved ? '故事卡已保存' : '故事卡没有保存成功，请再试一次'
+        return saved ? '故事卡已存入档案' : '故事卡没有保存成功，请再试一次'
       }
 
       case 'change_style': {

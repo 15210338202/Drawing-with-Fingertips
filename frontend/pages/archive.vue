@@ -123,14 +123,24 @@
       >
         <div class="max-h-[92dvh] w-full max-w-4xl overflow-auto rounded-[28px] border border-line bg-surface p-3 shadow-2xl">
           <img :src="preview.dataUrl" :alt="`${preview.styleTitle} 风格的故事卡`" class="w-full rounded-[20px]">
-          <div class="mt-3 flex items-center justify-between gap-2 px-1">
-            <p class="text-sm text-muted">{{ formatDate(preview.createdAt) }} · {{ preview.styleTitle }}</p>
-            <button
-              class="min-h-10 rounded-full border border-line bg-surface-2 px-4 text-sm text-ink"
-              @click="preview = null"
-            >
-              关闭
-            </button>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+            <p class="text-sm text-muted">
+              {{ formatDateTime(preview.createdAt) }} · {{ preview.styleTitle }}
+            </p>
+            <div class="flex gap-2">
+              <button
+                class="min-h-10 rounded-full border border-line bg-surface-2 px-4 text-sm text-ink"
+                @click="preview = null"
+              >
+                关闭
+              </button>
+              <button
+                class="min-h-10 rounded-full bg-sage px-4 text-sm font-medium text-white transition-colors hover:bg-sage-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"
+                @click="download(preview)"
+              >
+                保存到本地
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -157,6 +167,16 @@ function formatDate(timestamp: number) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: 'short',
     day: 'numeric',
+  }).format(new Date(timestamp))
+}
+
+function formatDateTime(timestamp: number) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(timestamp))
 }
 

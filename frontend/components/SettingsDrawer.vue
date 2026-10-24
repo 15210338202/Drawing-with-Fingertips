@@ -161,6 +161,28 @@
               恢复手势默认值
             </button>
           </section>
+
+          <section class="space-y-3 border-t border-line pt-5">
+            <div>
+              <h3 class="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">本机数据</h3>
+              <p class="mt-1 text-xs leading-5 text-muted">
+                成长档案只保存在这台设备。公共设备换人使用前，可以清空档案，换一本新画册。
+              </p>
+            </div>
+            <button
+              class="settings-chip settings-chip-danger w-full"
+              :disabled="clearingData"
+              @click="resetLocalData"
+            >
+              {{ clearingData ? '正在清空…' : '清空本机档案，换一本画册' }}
+            </button>
+            <p v-if="dataError" class="text-xs leading-5 text-danger" role="alert">
+              {{ dataError }}
+            </p>
+            <p class="text-[11px] leading-5 text-muted">
+              只会清空故事卡；感官友好设置和手势标定会保留。
+            </p>
+          </section>
         </div>
       </aside>
     </Transition>
@@ -172,12 +194,15 @@ import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useUIStore } from '~/stores/ui'
 import { useAppStore } from '~/stores/app'
 import { useGestureStore } from '~/stores/gesture'
+import { clearStoryCards } from '~/utils/archive'
 
 const ui = useUIStore()
 const app = useAppStore()
 const gesture = useGestureStore()
 
 const closeButton = ref<HTMLButtonElement | null>(null)
+const clearingData = ref(false)
+const dataError = ref('')
 
 function toggleSensory() {
   app.setSensoryMode(!app.isSensoryFriendly)
@@ -193,6 +218,32 @@ function resetGesture() {
   gesture.setConfirmFrames(3)
   gesture.setFistHoldMs(1000)
   gesture.setFistThreshold(0.85)
+}
+
+async function resetLocalData() {
+  if (clearingData.value) return
+
+  const confirmed = window.confirm(
+    '确定要清空这台设备上的全部画作档案吗？\n\n'
+    + '清空后无法恢复。感官友好设置和手势标定会保留。',
+  )
+  if (!confirmed) return
+
+  clearingData.value = true
+  dataError.value = ''
+  try {
+    await clearStoryCards()
+    ui.showToast('本机档案已清空，可以开始新的一本画册了')
+    ui.closeSettings()
+    // 重新加载，顺手清掉当前画布/对话/结果等内存状态；
+    // localStorage 里的无障碍偏好和标定故意保留。
+    window.setTimeout(() => window.location.reload(), 500)
+  }
+  catch (err) {
+    console.error('[settings] 清空本机档案失败：', err)
+    dataError.value = `清空没有成功：${(err as Error)?.message ?? '请再试一次'}`
+    clearingData.value = false
+  }
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -237,6 +288,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .settings-chip:hover {
   border-color: var(--color-sage);
   background: var(--color-sage-soft);
+}
+.settings-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .settings-chip-danger {
   color: var(--color-danger);

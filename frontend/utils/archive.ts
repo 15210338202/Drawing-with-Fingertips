@@ -126,6 +126,27 @@ export async function deleteStoryCard(id: string): Promise<void> {
 }
 
 /**
+ * 清空整本本机档案。
+ * 用 store.clear() 而不是 deleteDatabase()：其他标签页还开着时删除数据库会被 blocked，
+ * 清空记录更可靠，也不会让当前页面拿到失效连接。
+ */
+export async function clearStoryCards(): Promise<void> {
+  const db = await openDatabase()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('清空故事卡失败'))
+      tx.onabort = () => reject(tx.error ?? new Error('清空故事卡被中止'))
+    })
+  }
+  finally {
+    db.close()
+  }
+}
+
+/**
  * 显式下载档案卡。
  * 只能在用户点击事件里调用；语音/异步路径请先存档案，再让用户来这里点。
  */
