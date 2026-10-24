@@ -1,0 +1,4 @@
+name = "fingertip-draw"
+compatibility_date = "2026-10-25"
+pages_build_output_dir = "./.output/public"
+compatibility_flags = ["nodejs_compat"]
