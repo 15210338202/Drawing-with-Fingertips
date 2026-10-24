@@ -92,6 +92,13 @@ export const useAgentStore = defineStore('agent', {
      * 所以由画布在挂载时把自己的 exportSketch 挂上来（函数不是响应式对象，Pinia 不会包装它）。
      */
     sketchExporter: null as null | (() => string | null),
+
+    /**
+     * 画布撤销的桥。
+     * Agent 的 undo 工具在 useAgent 里执行，拿不到 DrawingCanvas 的模板 ref；
+     * 由画布挂载时把 undo 挂上来，返回是否真的撤销了一步。
+     */
+    undoHandler: null as null | (() => boolean),
   }),
   actions: {
     addMessage(m: AgentMessage) {
@@ -159,6 +166,12 @@ export const useAgentStore = defineStore('agent', {
     },
     setSketchExporter(fn: null | (() => string | null)) {
       this.sketchExporter = fn
+    },
+    setUndoHandler(fn: null | (() => boolean)) {
+      this.undoHandler = fn
+    },
+    requestUndo(): boolean {
+      return this.undoHandler?.() ?? false
     },
 
     /**

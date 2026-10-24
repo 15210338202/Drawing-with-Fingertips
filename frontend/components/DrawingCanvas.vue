@@ -136,6 +136,21 @@ const brush = useBrushStore()
 const gesture = useGestureStore()
 const agent = useAgentStore()
 
+const emit = defineEmits<{ history: [state: { canUndo: boolean; canRedo: boolean }] }>()
+
+/** 最多保留 20 步；每步是一张 800×600 PNG，足够覆盖常见绘画长度又不会吃爆内存 */
+const MAX_HISTORY = 20
+
+interface HistoryEntry {
+  dataUrl: string
+  empty: boolean
+}
+
+const history = ref<HistoryEntry[]>([])
+const historyIndex = ref(-1)
+const canUndo = computed(() => historyIndex.value > 0)
+const canRedo = computed(() => historyIndex.value >= 0 && historyIndex.value < history.value.length - 1)
+
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 
 /** 悬停准星的 DOM 元素与显示状态 */
@@ -196,6 +211,8 @@ const savingCard = ref(false)
 let ctx: CanvasRenderingContext2D | null = null
 /** 是否处于“按下并拖动”状态 */
 let drawing = false
+/** 当前这一笔有没有真的落下墨；抬笔时才决定要不要存快照 */
+let strokeDirty = false
 /** 上一个点（canvas 内部坐标系），用于和当前点连成线段 */
 let lastPoint: { x: number; y: number } | null = null
 /** 上一帧食指尖的位置（canvas 内部坐标），手势画线靠它连成线段 */
@@ -214,16 +231,122 @@ onMounted(() => {
 
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
+
+  agent.setUndoHandler(undo)
+  window.addEventListener('keydown', onHistoryKey)
+  saveSnapshot(true)
 })
 
 onBeforeUnmount(() => {
   agent.setSketchExporter(null)
+  agent.setUndoHandler(null)
+  window.removeEventListener('keydown', onHistoryKey)
 
   if (cursorRafId) {
     cancelAnimationFrame(cursorRafId)
     cursorRafId = 0
   }
 })
+
+function notifyHistory() {
+  emit('history', { canUndo: canUndo.value, canRedo: canRedo.value })
+}
+
+/** 把当前画布存进历史；empty 用于标记“这是一张空白画布” */
+function saveSnapshot(empty = false) {
+  const canvas = canvasEl.value
+  if (!canvas) return
+
+  const dataUrl = canvas.toDataURL('image/png')
+  const current = history.value[historyIndex.value]
+
+  // 同一张图不重复入栈：清空空白画布、连续 undo 后保存等情况都会走到这里
+  if (current?.dataUrl === dataUrl) return
+
+  // 从中间撤销后重新落笔：后面的重做记录作废
+  if (historyIndex.value < history.value.length - 1) {
+    history.value = history.value.slice(0, historyIndex.value + 1)
+  }
+
+  history.value.push({ dataUrl, empty })
+
+  if (history.value.length > MAX_HISTORY) {
+    history.value.shift()
+  }
+
+  historyIndex.value = history.value.length - 1
+  notifyHistory()
+}
+
+/** 当前这一笔结束：只有真的落过墨才保存，避免每次点击都塞一张重复图 */
+function finishStrokeSnapshot() {
+  if (!strokeDirty) return
+  strokeDirty = false
+  saveSnapshot(false)
+}
+
+let restoreToken = 0
+
+/** 用 drawImage 把某个快照画回画布；图片解码是异步的，用 token 防止快速连点时旧图覆盖新图 */
+function restoreSnapshot(entry: HistoryEntry) {
+  const canvas = canvasEl.value
+  if (!canvas || !ctx) return
+
+  const token = ++restoreToken
+  const image = new Image()
+
+  image.onload = () => {
+    if (token !== restoreToken) return
+
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+    ctx?.drawImage(image, 0, 0)
+
+    drawing = false
+    strokeDirty = false
+    lastPoint = null
+    lastGesturePoint = null
+    pasteError.value = ''
+    hideSuggestion()
+    stopSpeaking()
+    agent.setHasSketch(!entry.empty)
+  }
+
+  image.src = entry.dataUrl
+}
+
+function undo(): boolean {
+  if (!canUndo.value) return false
+  historyIndex.value--
+  restoreSnapshot(history.value[historyIndex.value])
+  notifyHistory()
+  return true
+}
+
+function redo(): boolean {
+  if (!canRedo.value) return false
+  historyIndex.value++
+  restoreSnapshot(history.value[historyIndex.value])
+  notifyHistory()
+  return true
+}
+
+function onHistoryKey(event: KeyboardEvent) {
+  const target = event.target
+  if (target instanceof HTMLElement && target.matches('input, textarea, [contenteditable="true"]')) return
+
+  if (!(event.ctrlKey || event.metaKey)) return
+
+  const key = event.key.toLowerCase()
+  if (key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) redo()
+    else undo()
+  }
+  else if (key === 'y') {
+    event.preventDefault()
+    redo()
+  }
+}
 
 /** 送模型的草图长边上限：klein 的输入按 512 处理，再大也会被它缩，白费带宽 */
 const EXPORT_MAX_SIZE = 512
@@ -705,6 +828,7 @@ async function pasteGenerated(): Promise<boolean> {
     suggestionDismissed.value = true
     hideSuggestion()
     agent.setGeneratedImage(null)
+    saveSnapshot(false)
     return true
   } catch (err) {
     console.error('[canvas] 贴回失败：', err)
@@ -758,6 +882,10 @@ watch(() => gesture.lastPoint, (point) => {
   // 状态不是 drawing 时也断开：CameraPreview 会把 lastPoint 置空，但抬笔那一帧两者可能
   // 先后到达，这里兜一层，免得画出一条横贯画布的长线。
   if (!point || gesture.state !== 'drawing') {
+    if (lastGesturePoint) {
+      // 手势抬笔：这里没有 pointerup，必须在离开 drawing 状态时补一张快照
+      finishStrokeSnapshot()
+    }
     lastGesturePoint = null
     return
   }
@@ -769,6 +897,14 @@ watch(() => gesture.lastPoint, (point) => {
   }
 
   lastGesturePoint = current
+})
+
+// 手势没有 pointerup，状态从 drawing 退出时补一次快照；strokeDirty 保证不会重复保存
+watch(() => gesture.state, (state, previous) => {
+  if (previous === 'drawing' && state !== 'drawing') {
+    finishStrokeSnapshot()
+    lastGesturePoint = null
+  }
 })
 
 /**
@@ -803,6 +939,7 @@ function strokeSegment(from: { x: number; y: number }, to: { x: number; y: numbe
 
   // 画布上落墨了：/api/agent 的 context.hasSketch 靠这个标记；
   // lastStrokeTime 同时刷新，空闲邀请从“这一段笔迹”重新计时
+  strokeDirty = true
   agent.markStroke()
 
   ctx.strokeStyle = brush.color
@@ -821,6 +958,7 @@ function startStroke(clientX: number, clientY: number) {
   const point = toCanvasPoint(clientX, clientY)
 
   drawing = true
+  strokeDirty = true
   lastPoint = point
 
   // 单击留下的这个点也算画布有内容，并刷新空闲计时
@@ -867,6 +1005,7 @@ function onTouchMove(event: TouchEvent) {
 
 /** 松手/移出画布都要结束当前笔画，否则鼠标在画布外松开后会一直画 */
 function onPointerUp() {
+  finishStrokeSnapshot()
   drawing = false
   lastPoint = null
 }
@@ -879,6 +1018,7 @@ function clear() {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   drawing = false
+  strokeDirty = false
   lastPoint = null
   lastGesturePoint = null
 
@@ -887,9 +1027,10 @@ function clear() {
   hideSuggestion()
   stopSpeaking()
   agent.setHasSketch(false)
+  saveSnapshot(true)
 }
 
-defineExpose({ clear, exportSketch, saveStoryCard, pasteGenerated })
+defineExpose({ clear, undo, redo, canUndo, canRedo, exportSketch, saveStoryCard, pasteGenerated })
 </script>
 
 <style scoped>

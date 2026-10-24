@@ -72,27 +72,53 @@
         清空画布
       </button>
 
-      <button
-        type="button"
-        class="flex min-h-11 w-full cursor-not-allowed items-center gap-2.5 rounded-xl border border-line/70 bg-surface-2/50 px-3 text-left text-sm font-medium text-muted/60"
-        disabled
-        title="撤销功能后续实现"
-      >
-        <svg
-          class="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          class="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-sm font-medium text-ink transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/30 disabled:cursor-not-allowed disabled:border-line/70 disabled:bg-surface-2/50 disabled:text-muted/50"
+          :disabled="!canUndo"
+          title="撤销上一步（Ctrl+Z）"
+          @click="emit('undo')"
         >
-          <path d="m9 7-4 4 4 4" />
-          <path d="M5 11h8a6 6 0 0 1 0 12" />
-        </svg>
-        撤销
-      </button>
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m9 7-4 4 4 4" />
+            <path d="M5 11h8a6 6 0 0 1 0 12" />
+          </svg>
+          撤销
+        </button>
+
+        <button
+          type="button"
+          class="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2 text-sm font-medium text-ink transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/30 disabled:cursor-not-allowed disabled:border-line/70 disabled:bg-surface-2/50 disabled:text-muted/50"
+          :disabled="!canRedo"
+          title="重做（Ctrl+Shift+Z）"
+          @click="emit('redo')"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m15 7 4 4-4 4" />
+            <path d="M19 11h-8a6 6 0 0 0 0 12" />
+          </svg>
+          重做
+        </button>
+      </div>
     </div>
 
     <div class="mt-4 border-t border-line/70 pt-3">
@@ -106,6 +132,14 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{ hasArtwork?: boolean }>(), { hasArtwork: false })
-const emit = defineEmits<{ clear: []; view: [] }>()
+withDefaults(defineProps<{
+  hasArtwork?: boolean
+  canUndo?: boolean
+  canRedo?: boolean
+}>(), {
+  hasArtwork: false,
+  canUndo: false,
+  canRedo: false,
+})
+const emit = defineEmits<{ clear: []; view: []; undo: []; redo: [] }>()
 </script>

@@ -14,6 +14,7 @@ export const TOOL_NAMES = [
   'set_brush_size',
   'erase',
   'clear',
+  'undo',
   'export',
   'analyze_sketch',
   'generate_image',
@@ -56,6 +57,11 @@ export const AGENT_TOOLS: Record<AgentToolName, AgentToolMeta> = {
   clear: {
     signature: 'clear()',
     description: '清空画布。用户说“重来”“清空”“都删掉”时用。',
+    parameters: z.object({}),
+  },
+  undo: {
+    signature: 'undo()',
+    description: '撤销上一步绘画。用户说“撤销”“退回去”“刚才那笔删掉”时用。不能重做。',
     parameters: z.object({}),
   },
   export: {

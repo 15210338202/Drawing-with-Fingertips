@@ -105,8 +105,11 @@ export function useAgent() {
         return '画布已清空'
       }
 
+      case 'undo':
+        return store.requestUndo() ? '已撤销上一步' : '已经没有可撤销的步骤'
+
       case 'erase':
-        return '橡皮擦还没实现（需要先做历史记录栈），这次跳过'
+        return '橡皮擦还没实现（需要先做橡皮擦工具），这次跳过'
 
       case 'export': {
         const dataUrl = exportSketch()

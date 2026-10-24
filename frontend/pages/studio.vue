@@ -27,8 +27,12 @@
       <div class="order-2 flex flex-col gap-3 xl:order-1 xl:sticky xl:top-20">
         <ToolRail
           :has-artwork="Boolean(agent.generatedImage)"
+          :can-undo="canUndo"
+          :can-redo="canRedo"
           @clear="canvasRef?.clear()"
           @view="viewResult"
+          @undo="canvasRef?.undo()"
+          @redo="canvasRef?.redo()"
         />
         <CameraDock />
       </div>
@@ -45,7 +49,7 @@
           </span>
         </div>
 
-        <DrawingCanvas ref="canvasRef" />
+        <DrawingCanvas ref="canvasRef" @history="onHistory" />
 
         <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted">
           <span>捏合 · 落笔</span>
@@ -78,6 +82,8 @@ import { useUIStore } from '~/stores/ui'
 
 interface CanvasHandle {
   clear: () => void
+  undo: () => boolean
+  redo: () => boolean
   saveStoryCard: () => Promise<boolean>
   pasteGenerated: () => Promise<boolean>
 }
@@ -85,6 +91,13 @@ interface CanvasHandle {
 const ui = useUIStore()
 const agent = useAgentStore()
 const canvasRef = ref<CanvasHandle | null>(null)
+const canUndo = ref(false)
+const canRedo = ref(false)
+
+function onHistory(state: { canUndo: boolean; canRedo: boolean }) {
+  canUndo.value = state.canUndo
+  canRedo.value = state.canRedo
+}
 
 // 任何生成入口（👍、风格卡、空闲建议）最终都会写 generatedImage；
 // 统一在这里打开结果 Sheet，避免每个入口各写一遍。
