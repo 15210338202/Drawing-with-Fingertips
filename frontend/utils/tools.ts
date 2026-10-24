@@ -16,6 +16,13 @@ export const TOOL_NAMES = [
   'clear',
   'undo',
   'export',
+  'save_story_card',
+  'change_style',
+  'close_result',
+  'open_camera',
+  'close_camera',
+  'view_result',
+  'open_archive',
   'analyze_sketch',
   'generate_image',
 ] as const
@@ -70,6 +77,44 @@ export const AGENT_TOOLS: Record<AgentToolName, AgentToolMeta> = {
     parameters: z.object({
       format: z.enum(['png', 'jpg']).describe('png 保真，jpg 体积小'),
     }),
+  },
+  save_story_card: {
+    signature: 'save_story_card()',
+    description: '保存当前作品的故事卡（草图 + 生成图 + AI 解读，导出为 PNG）。只有已经生成过作品时才能用。',
+    parameters: z.object({}),
+  },
+  change_style: {
+    signature: 'change_style(styleKey: string)',
+    description: '切换画风。有生成图时会用原草图按新风格重绘；还没有生成图时只记住风格，等下次生成使用。styleKey 必须来自清单。',
+    parameters: z.object({
+      styleKey: z.string().optional().describe('画风 id（形如 gf-01），必须来自清单'),
+      styleId: z.string().optional().describe('styleKey 的别名，兼容旧调用'),
+    }),
+  },
+  close_result: {
+    signature: 'close_result()',
+    description: '关闭“作品完成了”的作品预览弹窗。用户说“关掉弹窗/收起预览/把这个关掉”时用；没有打开预览时不要用。',
+    parameters: z.object({}),
+  },
+  open_camera: {
+    signature: 'open_camera()',
+    description: '打开手部摄像头。用户说“打开摄像头/开始识别/我要用手画”时用；已经打开时不要重复调用。',
+    parameters: z.object({}),
+  },
+  close_camera: {
+    signature: 'close_camera()',
+    description: '关闭手部摄像头。用户说“关闭摄像头/关掉摄像头/先不用手画了”时用；没有打开时不要调用。',
+    parameters: z.object({}),
+  },
+  view_result: {
+    signature: 'view_result()',
+    description: '打开当前生成作品的预览（“作品完成了”弹窗）。用户说“看看作品/打开作品/查看刚才那张”时用；没有生成过作品时不要用。不是保存故事卡。',
+    parameters: z.object({}),
+  },
+  open_archive: {
+    signature: 'open_archive()',
+    description: '打开“成长档案”页面，查看已保存的故事卡。用户说“打开档案/看看我的档案/我的作品集”时用。',
+    parameters: z.object({}),
   },
   analyze_sketch: {
     signature: 'analyze_sketch(imageBase64?: string)',

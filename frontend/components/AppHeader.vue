@@ -29,6 +29,7 @@
 
       <div class="flex items-center gap-2">
         <slot name="actions">
+          <ArchiveLink />
           <SensoryToggle />
         </slot>
       </div>

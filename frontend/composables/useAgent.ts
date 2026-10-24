@@ -25,8 +25,59 @@ interface GenerateResponse {
   reason?: string
 }
 
+/** 一次完整 Agent 回合的执行结果；语音入口用它决定播报哪句话 */
+export interface AgentRunResult {
+  reply: string
+  actionLines: string[]
+  spoken: string
+}
+
 /** 每次最多带多少条历史消息上去，防止聊久了请求体无限增长 */
 const MAX_HISTORY = 20
+
+/** 清空画布前的二次确认文案，文本/语音共用 */
+const CLEAR_CONFIRM_TEXT = '清空会丢掉现在这幅画。确定要清空吗？'
+
+/** 用户表达“确实要清空”的说法；确认句不走模型，直接执行，避免模型来回追问 */
+const CLEAR_CONFIRM_PATTERN = /^(确定|确认|是的|对|好|好的|好呀|嗯|可以|行|清空|确定清空|确认清空)[。！!，,\s]*$/
+
+/** 用户表达“先不清空”的说法 */
+const CLEAR_CANCEL_PATTERN = /取消|算了|不要|不用|别|先不|不清|不确定/
+
+/** 用户主动说“清空/重来”的意图；命中后先问确认，不直接交给模型 */
+const CLEAR_INTENT_PATTERN = /清空|清掉|都删掉|全部删掉|全删|重来/
+
+/**
+ * 把动作执行结果翻成一句适合念出来的话。
+ * 动作结果比模型自己写的 reply 更可信：模型说“已经撤销”，不一定真的执行成功。
+ */
+function spokenFrom(reply: string, lines: string[]): string {
+  const text = lines.join('\n')
+  const withName = (value: string) => value.replaceAll('小惠', '小绘')
+
+  if (/没有可撤销/.test(text)) return '现在没有可以撤销的步骤啦'
+  if (/已撤销/.test(text)) return '已经帮你撤销啦'
+  if (/画布已清空/.test(text)) return '已经帮你清空啦'
+  if (/作品预览已关闭/.test(text)) return '已经帮你关掉作品预览啦'
+  if (/作品预览已打开/.test(text)) return '已经帮你打开作品预览啦'
+  if (/摄像头已经开着/.test(text)) return '摄像头已经开着啦'
+  if (/摄像头已打开/.test(text)) return '已经帮你打开摄像头啦'
+  if (/摄像头已经关着/.test(text)) return '摄像头已经关着啦'
+  if (/摄像头已关闭/.test(text)) return '已经帮你关掉摄像头啦'
+  if (/摄像头没有关闭成功/.test(text)) return '摄像头没有关闭成功，再试一次吧'
+  if (/摄像头没有打开成功/.test(text)) return '摄像头没有打开成功，检查一下浏览器权限吧'
+  if (/当前页面没有摄像头/.test(text)) return '这里没有摄像头，先回画室吧'
+  if (/已打开成长档案/.test(text)) return '已经帮你打开成长档案啦'
+  if (/还没有生成作品/.test(text)) return withName(reply || '先画一画，再让我把它变成作品吧')
+  if (/故事卡没有保存成功/.test(text)) return '故事卡没有保存成功，再试一次吧'
+  if (/故事卡已保存|作品已导出/.test(text)) return '已经帮你保存好啦'
+  if (/确定要清空/.test(text)) return CLEAR_CONFIRM_TEXT
+  if (/已切换/.test(text)) return withName(reply || '已经帮你换好风格啦')
+  if (/生成完成/.test(text)) return withName(reply || '已经帮你画好啦')
+  if (/生成失败|生成服务没成功/.test(text)) return '这次生成没有成功，再试一次吧'
+
+  return withName(reply || '好啦')
+}
 
 /** 解析出来的一条 SSE 消息 */
 type StreamEvent =
@@ -38,6 +89,7 @@ export function useAgent() {
   const store = useAgentStore()
   const brush = useBrushStore()
   const gesture = useGestureStore()
+  const ui = useUIStore()
   const { speak } = useTTS()
 
   /** 当前流式请求的中断句柄；再次提问或点“停止”都要用它 */
@@ -55,6 +107,9 @@ export function useAgent() {
   function buildContext() {
     return {
       hasSketch: store.hasSketch,
+      hasGeneratedImage: Boolean(store.generatedImage),
+      isResultOpen: ui.isResultOpen,
+      isCameraActive: store.cameraController?.isActive() ?? false,
       canvasSize: { w: 800, h: 600 },
       brushColor: brush.color,
       recentActions: store.lastActions.map(action => action.tool),
@@ -106,7 +161,80 @@ export function useAgent() {
       }
 
       case 'undo':
+      // 兼容旧版/外部提示词里可能出现的别名；和 undo 是同一个动作
+      case 'undo_canvas':
         return store.requestUndo() ? '已撤销上一步' : '已经没有可撤销的步骤'
+
+      case 'save_story_card': {
+        if (!store.generatedImage) return '还没有生成作品，先把它变成一幅画吧'
+        if (!store.storyCardSaver) return '保存失败：画布还没准备好'
+
+        const saved = await store.storyCardSaver()
+        return saved ? '故事卡已保存' : '故事卡没有保存成功，请再试一次'
+      }
+
+      case 'change_style': {
+        const requested = String(args.styleKey ?? args.styleId ?? '').trim()
+        if (!requested) return '缺少画风参数，跳过'
+
+        const matched = store.styleResults.find(
+          item => item.id === requested || item.title === requested || item.styleModifiers.includes(requested),
+        )
+        const styleKey = matched?.id ?? requested
+        const title = matched?.title ?? styleKey
+        store.setLastStyleKey(styleKey)
+        store.setLastGeneratedStyleId(styleKey)
+
+        // 已经有作品时直接按新风格重绘；没有作品时只把风格记下来，
+        // 避免用户只是说“换成水彩”就被强制生成一张新图。
+        if (store.generatedImage) {
+          return await runAction({
+            tool: 'generate_image',
+            args: {
+              styleKey,
+              sketchBase64: store.lastSketchBase64 ?? undefined,
+              strength: 0.6,
+            },
+          })
+        }
+
+        return `已切换到「${title}」风格，下次生成会用它`
+      }
+
+      case 'close_result': {
+        if (!ui.isResultOpen) return '现在没有打开的作品预览'
+        ui.closeResult()
+        return '作品预览已关闭'
+      }
+
+      case 'open_camera': {
+        if (ui.isResultOpen) ui.closeResult()
+        const result = await store.requestOpenCamera()
+        if (result === 'missing') return '当前页面没有摄像头，请先回到画室'
+        if (result === 'already') return '摄像头已经开着啦'
+        if (result === 'failed') return '摄像头没有打开成功，请检查浏览器权限'
+        return '摄像头已打开'
+      }
+
+      case 'close_camera': {
+        const result = store.requestCloseCamera()
+        if (result === 'missing') return '当前页面没有摄像头，请先回到画室'
+        if (result === 'already') return '摄像头已经关着啦'
+        if (result === 'failed') return '摄像头没有关闭成功，请稍后再试'
+        return '摄像头已关闭'
+      }
+
+      case 'view_result': {
+        if (!store.generatedImage) return '还没有生成作品，先画一画，再让我把它变成作品吧'
+        ui.openResult(store.generatedImage)
+        return '作品预览已打开'
+      }
+
+      case 'open_archive': {
+        ui.closeResult()
+        await navigateTo('/archive')
+        return '已打开成长档案'
+      }
 
       case 'erase':
         return '橡皮擦还没实现（需要先做橡皮擦工具），这次跳过'
@@ -271,8 +399,8 @@ export function useAgent() {
    * 串行执行一串动作。
    * 必须串行而不是并发：动作之间可能互相影响（先改颜色再生成，生成时用的是改后的画布状态）。
    */
-  async function executeActions(actions: AgentAction[]) {
-    if (!actions.length) return
+  async function executeActions(actions: AgentAction[]): Promise<string[]> {
+    if (!actions.length) return []
 
     store.setExecuting(true)
     const lines: string[] = []
@@ -280,6 +408,14 @@ export function useAgent() {
     try {
       for (const action of actions) {
         try {
+          // 清空是不可逆操作：模型即使直接下发了 clear，也先停下来等一句确认。
+          // 已经在 send() 里确认过的确认句会走 runAction，不会经过这里。
+          if (action.tool === 'clear' && store.hasSketch && !store.pendingClear) {
+            store.setPendingClear(true)
+            lines.push(`· clear：${CLEAR_CONFIRM_TEXT}`)
+            continue
+          }
+
           lines.push(`· ${action.tool}：${await runAction(action)}`)
         } catch (err) {
           // 单步失败只记一条，继续跑后面的，不要把整串中断
@@ -289,6 +425,7 @@ export function useAgent() {
       }
 
       store.addMessage({ role: 'assistant', content: `动作执行结果：\n${lines.join('\n')}` })
+      return lines
     } finally {
       store.setExecuting(false)
     }
@@ -298,11 +435,45 @@ export function useAgent() {
    * 非流式入口：走 /api/agent，一次性拿到 reply + actions，然后串行执行 actions。
    * 结果全部写进 agentStore，界面直接读 store。
    */
-  async function send(text: string) {
+  async function send(text: string): Promise<AgentRunResult | null> {
     const content = text.trim()
-    if (!content || store.loading || store.streaming || store.executing) return
+    if (!content || store.loading || store.streaming || store.executing) return null
 
     store.addMessage({ role: 'user', content })
+
+    // ===== 清空画布的二次确认 =====
+    // 语音入口是“说完直接执行”，不能在用户还没反应过来时把画布清掉。
+    // 确认句在前端就地处理，不再发给模型，避免模型来回追问造成死循环。
+    if (store.pendingClear) {
+      if (CLEAR_CANCEL_PATTERN.test(content)) {
+        store.setPendingClear(false)
+        const reply = '好，画布先留着。'
+        store.addMessage({ role: 'assistant', content: reply })
+        return { reply, actionLines: [], spoken: reply }
+      }
+
+      if (CLEAR_CONFIRM_PATTERN.test(content)) {
+        store.setPendingClear(false)
+        const line = await runAction({ tool: 'clear', args: {} })
+        store.addMessage({ role: 'assistant', content: line })
+        return { reply: line, actionLines: [line], spoken: spokenFrom(line, [line]) }
+      }
+
+      // 用户没有回答确认，而是说了别的：取消这次清空，继续正常理解新指令
+      store.setPendingClear(false)
+    }
+
+    // 用户主动说“清空/重来”时先拦下来问一句；空画布没有可丢的东西，直接放行。
+    if (
+      store.hasSketch
+      && CLEAR_INTENT_PATTERN.test(content)
+      && !CLEAR_CANCEL_PATTERN.test(content)
+    ) {
+      store.setPendingClear(true)
+      store.addMessage({ role: 'assistant', content: CLEAR_CONFIRM_TEXT })
+      return { reply: CLEAR_CONFIRM_TEXT, actionLines: [], spoken: CLEAR_CONFIRM_TEXT }
+    }
+
     store.setLoading(true)
     store.setFallback(false)
 
@@ -336,7 +507,23 @@ export function useAgent() {
       // 模型答完了，接下来是执行动作：先摘掉 loading，再进 executing，
       // 否则界面会一直显示"思考中"，用户不知道是在等模型还是在跑动作
       store.setLoading(false)
-      await executeActions(res.actions ?? [])
+      const actionLines = await executeActions(res.actions ?? [])
+
+      // 模型自己选择先反问“确定要清空吗”时，同样进入待确认状态，
+      // 下一条“确定”就不会再被模型绕一圈。
+      if (
+        !actionLines.length
+        && store.hasSketch
+        && /确定.*清空|清空.*确定/.test(res.reply)
+      ) {
+        store.setPendingClear(true)
+      }
+
+      return {
+        reply: res.reply,
+        actionLines,
+        spoken: spokenFrom(res.reply, actionLines),
+      }
     } catch (err) {
       // 网络失败、超时、非 200 都在这里兜住，不要把原始异常丢到界面上
       const data = (err as { data?: { error?: string, statusMessage?: string, message?: string } })?.data
@@ -347,6 +534,7 @@ export function useAgent() {
       store.setReasoning([])
       store.setLastActions([])
       store.setFallback(true)
+      return null
     } finally {
       store.setLoading(false)
     }

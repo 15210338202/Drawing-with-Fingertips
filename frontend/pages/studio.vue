@@ -8,6 +8,7 @@
         >
           首页
         </NuxtLink>
+        <ArchiveLink />
         <button
           class="flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"
           aria-label="打开设置"
@@ -72,6 +73,7 @@
 
 <script setup lang="ts">
 import AppHeader from '~/components/AppHeader.vue'
+import ArchiveLink from '~/components/ArchiveLink.vue'
 import ToolRail from '~/components/studio/ToolRail.vue'
 import CameraDock from '~/components/studio/CameraDock.vue'
 import AssistantDock from '~/components/studio/AssistantDock.vue'
@@ -84,7 +86,7 @@ interface CanvasHandle {
   clear: () => void
   undo: () => boolean
   redo: () => boolean
-  saveStoryCard: () => Promise<boolean>
+  archiveStoryCard: () => Promise<boolean>
   pasteGenerated: () => Promise<boolean>
 }
 
@@ -109,8 +111,8 @@ async function saveResult() {
   if (ui.resultSaving) return
   ui.setResultSaving(true)
   try {
-    const saved = await canvasRef.value?.saveStoryCard()
-    if (saved === false) ui.setResultError('故事卡保存失败，请再试一次。')
+    const saved = await canvasRef.value?.archiveStoryCard()
+    if (saved === false) ui.setResultError('故事卡存入档案失败，请再试一次。')
   }
   finally {
     ui.setResultSaving(false)

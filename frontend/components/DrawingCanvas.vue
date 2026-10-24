@@ -129,12 +129,14 @@ import { DEFAULT_TONE, INSIGHT_TONES } from '~/utils/insight'
 import type { Insight, InsightToneKey } from '~/utils/insight'
 import type { StyleSuggestion } from '~/utils/styleSuggestions'
 import { useTTS } from '~/composables/useTTS'
-import { generateStoryCard } from '~/utils/storyCard'
+import { buildStoryCardDataUrl } from '~/utils/storyCard'
+import { saveStoryCardToArchive } from '~/utils/archive'
 import { buildStoryCaption, condenseInsight } from '~/utils/storyCaption'
 
 const brush = useBrushStore()
 const gesture = useGestureStore()
 const agent = useAgentStore()
+const ui = useUIStore()
 
 const emit = defineEmits<{ history: [state: { canUndo: boolean; canRedo: boolean }] }>()
 
@@ -222,6 +224,7 @@ onMounted(() => {
   // 把导出方法挂到 store 上：useAgent 在 AgentPanel 里跑，拿不到这里的模板 ref。
   // 必须放在下面那个提前 return 之前，否则 canvas 没就绪时桥就断了。
   agent.setSketchExporter(exportSketch)
+  agent.setStoryCardSaver(archiveStoryCard)
 
   // 准星的跟随循环独立于画布初始化：canvas 上下文拿不到也要能显示光标
   cursorRafId = requestAnimationFrame(stepCursor)
@@ -239,6 +242,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   agent.setSketchExporter(null)
+  agent.setStoryCardSaver(null)
   agent.setUndoHandler(null)
   window.removeEventListener('keydown', onHistoryKey)
 
@@ -295,6 +299,11 @@ function restoreSnapshot(entry: HistoryEntry) {
   const token = ++restoreToken
   const image = new Image()
 
+  // 立刻停掉上一段语音/建议；不能等 onload 再停：
+  // 语音撤销时 runAction 会先返回，播报已经排上，等图片解码完再 cancel 会把“已经帮你撤销啦”吞掉。
+  hideSuggestion()
+  stopSpeaking()
+
   image.onload = () => {
     if (token !== restoreToken) return
 
@@ -306,8 +315,6 @@ function restoreSnapshot(entry: HistoryEntry) {
     lastPoint = null
     lastGesturePoint = null
     pasteError.value = ''
-    hideSuggestion()
-    stopSpeaking()
     agent.setHasSketch(!entry.empty)
   }
 
@@ -763,37 +770,53 @@ function describeInsightError(err: unknown) {
 }
 
 /**
- * 保存作品故事卡。
+ * 画出故事卡并返回 dataURL。
  *
  * 草图用画布原始 toDataURL，而不是送模型的 exportSketch：
  * exportSketch 会裁白边 + 二值化，适合模型识别，但会把孩子的颜色弄丢。
  */
-async function saveStoryCard(): Promise<boolean> {
-  // 连点保存时直接视为已处理，避免第二次调用把第一次的成功误报成失败。
-  if (savingCard.value) return true
-
+async function buildStoryCard(): Promise<{ dataUrl: string, styleTitle: string, caption: string } | null> {
   const generated = agent.generatedImage
   const canvas = canvasEl.value
   if (!generated || !canvas) {
     pasteError.value = '还没有可保存的作品'
-    return false
+    return null
   }
+
+  const sketch = canvas.toDataURL('image/png')
+  const styleTitle = currentStyleTitle.value
+  // 没有 AI 解读时，按画面留白/冷暖/风格现编一句；不再固定成同一句。
+  const caption = insightStoryText.value || buildStoryCaption(canvas, styleTitle)
+  const dataUrl = await buildStoryCardDataUrl(sketch, generated, caption, styleTitle)
+
+  return { dataUrl, styleTitle, caption }
+}
+
+/**
+ * 把故事卡存进本机「成长档案」。
+ *
+ * 语音/异步任务没有用户手势，直接触发下载会被浏览器拦截，所以这里绝不下载；
+ * 用户在档案页显式点击时，才走 downloadStoryCard()。
+ */
+async function archiveStoryCard(): Promise<boolean> {
+  // 连点保存时直接视为已处理，避免第二次调用把第一次的成功误报成失败。
+  if (savingCard.value) return true
 
   savingCard.value = true
   pasteError.value = ''
 
   try {
-    const sketch = canvas.toDataURL('image/png')
-    const styleTitle = currentStyleTitle.value
-    // 没有 AI 解读时，按画面留白/冷暖/风格现编一句；不再固定成同一句。
-    const aiText = insightStoryText.value || buildStoryCaption(canvas, styleTitle)
+    const card = await buildStoryCard()
+    if (!card) return false
 
-    await generateStoryCard(sketch, generated, aiText, styleTitle)
+    await saveStoryCardToArchive(card)
+    ui.showToast('已存入「档案」，想拿原图时去那里点下载')
+    ui.flashArchive()
     return true
   }
   catch (err) {
-    console.error('[canvas] 故事卡导出失败：', err)
-    pasteError.value = `故事卡导出失败：${(err as Error)?.message ?? '请重试'}`
+    console.error('[canvas] 故事卡存入档案失败：', err)
+    pasteError.value = `故事卡保存失败：${(err as Error)?.message ?? '请重试'}`
     return false
   }
   finally {
@@ -1030,7 +1053,7 @@ function clear() {
   saveSnapshot(true)
 }
 
-defineExpose({ clear, undo, redo, canUndo, canRedo, exportSketch, saveStoryCard, pasteGenerated })
+defineExpose({ clear, undo, redo, canUndo, canRedo, exportSketch, buildStoryCard, archiveStoryCard, pasteGenerated })
 </script>
 
 <style scoped>

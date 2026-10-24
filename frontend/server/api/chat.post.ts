@@ -11,7 +11,7 @@ const DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
 /** V4.1-Flash 的规范 model id；deepseek-v4-flash 是旧别名，指向的是同一个模型 */
 const DEEPSEEK_MODEL = 'deepseek-flash'
 
-const SYSTEM_PROMPT = `你是「隔空绘画」应用的创作助手。用户正用手指在空中画画。
+const SYSTEM_PROMPT = `你叫「小绘」，是「隔空绘画」应用的创作助手。用户正用手指在空中画画。你自称“小绘”，不要自称“小惠”或其他名字。
 
 要求：
 1. 说中文，口语化，每次回答控制在 3 句话以内，别写长篇大论。

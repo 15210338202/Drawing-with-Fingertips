@@ -15,6 +15,15 @@
 import { onScopeDispose, ref } from 'vue'
 import { useAppStore } from '~/stores/app'
 
+/**
+ * 全局“正在说话”标记。
+ *
+ * 免提模式必须在任何一处 TTS 开始时暂停麦克风，否则会把小绘自己的声音录进去。
+ * 所有 useTTS() 实例共享这一份状态；具体是哪一句由 token 区分。
+ */
+export const ttsSpeaking = ref(false)
+let ttsToken = 0
+
 export interface SpeakOptions {
   /** 语速，0.5–2，默认 0.95；感官友好模式下会被压到不超过 0.8 */
   rate?: number
@@ -154,21 +163,18 @@ function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
 
 export function useTTS() {
   const appStore = useAppStore()
-  /** 是否正在念；只用于界面上的小状态，不参与业务判断 */
-  const speaking = ref(false)
   /** 当前这条，用来忽略被 cancel 掉的旧回调和还没开始就过期的等待 */
   let current: SpeechSynthesisUtterance | null = null
 
   /** 立刻停止当前朗读；页面卸载/关摄像头时调用，避免声音跟着走 */
   function stop() {
-    if (!canSpeak) {
-      speaking.value = false
-      return
-    }
+    ttsToken += 1
+    ttsSpeaking.value = false
+
+    if (!canSpeak) return
 
     current = null
     window.speechSynthesis.cancel()
-    speaking.value = false
   }
 
   /**
@@ -211,20 +217,22 @@ export function useTTS() {
     utterance.pitch = clamp(sensoryFriendly ? 1 : (options.pitch ?? 1.05), 0, 2)
     utterance.volume = clamp(options.volume ?? 1, 0, 1)
 
+    const token = ++ttsToken
     current = utterance
+    ttsSpeaking.value = true
     utterance.onstart = () => {
-      if (current === utterance) speaking.value = true
+      if (token === ttsToken) ttsSpeaking.value = true
     }
     utterance.onend = () => {
       // 已经被新一句替换/主动 stop 的旧回调不要改状态
-      if (current !== utterance) return
+      if (token !== ttsToken) return
       current = null
-      speaking.value = false
+      ttsSpeaking.value = false
     }
     utterance.onerror = (event) => {
-      if (current === utterance) {
+      if (token === ttsToken) {
         current = null
-        speaking.value = false
+        ttsSpeaking.value = false
       }
       // canceled / interrupted 是我们自己 cancel 造成的，不算错误
       if (event.error !== 'canceled' && event.error !== 'interrupted') {
@@ -234,7 +242,7 @@ export function useTTS() {
 
     /** 音色列表就绪后真正开始念；等待期间被新一句/stop 顶掉就放弃 */
     const startWith = (voices: SpeechSynthesisVoice[]) => {
-      if (current !== utterance) return
+      if (token !== ttsToken || current !== utterance) return
 
       const voice = pickBestVoice(voices)
       if (voice) {
@@ -251,7 +259,7 @@ export function useTTS() {
       }
 
       const launch = () => {
-        if (current !== utterance) return
+        if (token !== ttsToken || current !== utterance) return
 
         // Chrome 有时会停在 paused 状态，resume 一下比直接 speak 稳
         try {
@@ -265,8 +273,10 @@ export function useTTS() {
           synth.speak(utterance)
         }
         catch (err) {
-          if (current === utterance) current = null
-          speaking.value = false
+          if (token === ttsToken) {
+            current = null
+            ttsSpeaking.value = false
+          }
           console.warn('[tts] 启动语音合成失败：', err)
         }
       }
@@ -286,8 +296,10 @@ export function useTTS() {
       void waitForVoices()
         .then(startWith)
         .catch((err) => {
-          if (current === utterance) current = null
-          speaking.value = false
+          if (token === ttsToken) {
+            current = null
+            ttsSpeaking.value = false
+          }
           console.warn('[tts] 等待音色列表失败：', err)
         })
     }
@@ -298,5 +310,5 @@ export function useTTS() {
   // 组件销毁时停掉，避免离开页面后还在说话
   onScopeDispose(stop)
 
-  return { supported: canSpeak, speaking, speak, stop }
+  return { supported: canSpeak, speaking: ttsSpeaking, speak, stop }
 }

@@ -11,14 +11,46 @@ export const useUIStore = defineStore('ui', () => {
   const resultImage = ref('')
   const resultError = ref('')
   const resultSaving = ref(false)
+  const toastMessage = ref('')
+  const archiveFlash = ref(false)
 
   let resultClearTimer: ReturnType<typeof setTimeout> | null = null
+  let toastTimer: ReturnType<typeof setTimeout> | null = null
+  let archiveFlashTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearResultTimer() {
     if (resultClearTimer) {
       clearTimeout(resultClearTimer)
       resultClearTimer = null
     }
+  }
+
+  /** 轻提示：已存入档案、保存失败等；自动消失，不抢操作 */
+  function showToast(message: string, duration = 2600) {
+    if (toastTimer) clearTimeout(toastTimer)
+    toastMessage.value = message
+    toastTimer = setTimeout(() => {
+      toastMessage.value = ''
+      toastTimer = null
+    }, duration)
+  }
+
+  function hideToast() {
+    if (toastTimer) {
+      clearTimeout(toastTimer)
+      toastTimer = null
+    }
+    toastMessage.value = ''
+  }
+
+  /** 让顶栏「档案」入口闪一下，告诉用户东西存哪了 */
+  function flashArchive(duration = 1400) {
+    if (archiveFlashTimer) clearTimeout(archiveFlashTimer)
+    archiveFlash.value = true
+    archiveFlashTimer = setTimeout(() => {
+      archiveFlash.value = false
+      archiveFlashTimer = null
+    }, duration)
   }
 
   function openSettings() {
@@ -69,11 +101,16 @@ export const useUIStore = defineStore('ui', () => {
     resultImage,
     resultError,
     resultSaving,
+    toastMessage,
+    archiveFlash,
     openSettings,
     closeSettings,
     openResult,
     setResultError,
     setResultSaving,
     closeResult,
+    showToast,
+    hideToast,
+    flashArchive,
   }
 })

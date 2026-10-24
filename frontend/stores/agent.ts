@@ -26,6 +26,13 @@ export interface StyleResult {
   score: number
 }
 
+/** CameraPreview 挂载时注册的桥；Agent 的 open_camera 拿不到模板 ref */
+export interface CameraController {
+  start: () => Promise<unknown>
+  stop: () => void
+  isActive: () => boolean
+}
+
 export const useAgentStore = defineStore('agent', {
   state: () => ({
     messages: [] as AgentMessage[],
@@ -99,6 +106,26 @@ export const useAgentStore = defineStore('agent', {
      * 由画布挂载时把 undo 挂上来，返回是否真的撤销了一步。
      */
     undoHandler: null as null | (() => boolean),
+
+    /**
+     * 故事卡保存的桥。
+     * Agent 的 save_story_card 工具同样拿不到 DrawingCanvas 的模板 ref，
+     * 由画布挂载时把自己的 saveStoryCard 挂上来。
+     */
+    storyCardSaver: null as null | (() => Promise<boolean>),
+
+    /**
+     * 摄像头控制桥。
+     * 语音/文字 Agent 运行在 useAgent 里，拿不到 CameraDock 里 CameraPreview 的 ref；
+     * 由 CameraPreview 挂载时注册，open_camera 通过它启动摄像头。
+     */
+    cameraController: null as CameraController | null,
+
+    /**
+     * 是否正在等用户确认“清空画布”。
+     * 清空是不可逆动作，语音/文本入口都先问一句；确认后才真正清。
+     */
+    pendingClear: false,
   }),
   actions: {
     addMessage(m: AgentMessage) {
@@ -128,6 +155,12 @@ export const useAgentStore = defineStore('agent', {
         this.lastStrokeTime = 0
         // 画布清空后，上一张画的风格推荐不再有效，避免新手势继续沿用旧推荐
         this.currentSuggestions = []
+        this.pendingClear = false
+      }
+      else {
+        // 用户重新落笔后，之前那句“确定要清空吗”已经过期，避免下一次
+        // 再说“清空”时被当成确认、直接清掉新画。
+        this.pendingClear = false
       }
     },
     /**
@@ -137,6 +170,7 @@ export const useAgentStore = defineStore('agent', {
      */
     markStroke() {
       this.hasSketch = true
+      this.pendingClear = false
       this.lastStrokeTime = Date.now()
     },
     setLastStrokeTime(v: number) {
@@ -172,6 +206,41 @@ export const useAgentStore = defineStore('agent', {
     },
     requestUndo(): boolean {
       return this.undoHandler?.() ?? false
+    },
+    setStoryCardSaver(fn: null | (() => Promise<boolean>)) {
+      this.storyCardSaver = fn
+    },
+    setCameraController(controller: CameraController | null) {
+      this.cameraController = controller
+    },
+    async requestOpenCamera(): Promise<'opened' | 'already' | 'missing' | 'failed'> {
+      if (!this.cameraController) return 'missing'
+      if (this.cameraController.isActive()) return 'already'
+
+      try {
+        await this.cameraController.start()
+      }
+      catch {
+        return 'failed'
+      }
+
+      return this.cameraController?.isActive() ? 'opened' : 'failed'
+    },
+    requestCloseCamera(): 'closed' | 'already' | 'missing' | 'failed' {
+      if (!this.cameraController) return 'missing'
+      if (!this.cameraController.isActive()) return 'already'
+
+      try {
+        this.cameraController.stop()
+      }
+      catch {
+        return 'failed'
+      }
+
+      return this.cameraController.isActive() ? 'failed' : 'closed'
+    },
+    setPendingClear(v: boolean) {
+      this.pendingClear = v
     },
 
     /**
@@ -212,6 +281,7 @@ export const useAgentStore = defineStore('agent', {
       this.lastSketchBase64 = null
       this.lastStrokeTime = 0
       this.isGenerating = false
+      this.pendingClear = false
     },
   },
 })

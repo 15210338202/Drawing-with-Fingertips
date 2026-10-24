@@ -118,11 +118,11 @@
                 :disabled="isRegenerating || ui.resultSaving"
                 @click="emit('save')"
               >
-                {{ ui.resultSaving ? '保存中…' : '保存故事卡' }}
+                {{ ui.resultSaving ? '存入中…' : '存入档案' }}
               </button>
             </div>
             <p class="mt-3 text-center text-[11px] text-muted sm:text-left">
-              故事卡会保存到浏览器下载目录，不会上传到云端。
+              故事卡会存入本机「档案」，可在档案页下载，不会上传到云端。
             </p>
           </footer>
         </section>

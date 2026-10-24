@@ -268,19 +268,22 @@ function drawFooter(ctx: CanvasRenderingContext2D) {
 }
 
 /**
- * 生成并下载故事卡。
+ * 生成故事卡并返回 PNG dataURL，不触发下载。
+ *
+ * 语音/异步任务没有用户手势，直接 `<a download>` 会被浏览器拦截；
+ * 所以这里只负责“画出来”，由调用方决定存档案还是显式下载。
  *
  * @param sketchBase64   孩子原图（PNG dataURL；可以是透明底，画进相框时会铺白）
  * @param generatedBase64 AI 生成图（dataURL 或同源/允许 CORS 的 URL）
  * @param aiText         AI 共情解读正文
  * @param styleTitle     风格名，如“水墨国风”
  */
-export async function generateStoryCard(
+export async function buildStoryCardDataUrl(
   sketchBase64: string,
   generatedBase64: string,
   aiText: string,
   styleTitle: string,
-): Promise<void> {
+): Promise<string> {
   if (!sketchBase64) throw new Error('缺少草图')
   if (!generatedBase64) throw new Error('缺少生成图')
 
@@ -317,21 +320,31 @@ export async function generateStoryCard(
   ctx.font = `17px ${FONT_FAMILY}`
   wrapText(ctx, `“${text}”`, 50, 504, 330, 27, 6)
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((value) => {
-      if (value) resolve(value)
-      else reject(new Error('故事卡编码失败'))
-    }, 'image/png')
-  })
+  return canvas.toDataURL('image/png')
+}
 
-  const url = URL.createObjectURL(blob)
+/** 显式下载 dataURL；只应在用户点击事件里调用 */
+export function downloadStoryCardDataUrl(dataUrl: string, filename = `指尖绘迹-故事卡-${Date.now()}.png`) {
+  if (!dataUrl) throw new Error('故事卡内容为空')
   const link = document.createElement('a')
-  link.download = `指尖绘迹-故事卡-${Date.now()}.png`
-  link.href = url
+  link.download = filename
+  link.href = dataUrl
   document.body.appendChild(link)
   link.click()
   link.remove()
-
-  // 给浏览器留出开始下载的时间，再释放 blob URL
-  setTimeout(() => URL.revokeObjectURL(url), 1500)
 }
+
+/**
+ * 生成并下载故事卡（保留给明确的用户点击场景）。
+ * 语音保存请改用 buildStoryCardDataUrl + 档案。
+ */
+export async function generateStoryCard(
+  sketchBase64: string,
+  generatedBase64: string,
+  aiText: string,
+  styleTitle: string,
+): Promise<void> {
+  const dataUrl = await buildStoryCardDataUrl(sketchBase64, generatedBase64, aiText, styleTitle)
+  downloadStoryCardDataUrl(dataUrl)
+}
+

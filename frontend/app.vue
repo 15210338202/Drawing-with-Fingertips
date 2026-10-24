@@ -19,5 +19,6 @@ onMounted(() => {
     :class="{ 'sensory-friendly': appStore.isSensoryFriendly }"
   >
     <NuxtPage />
+    <ToastHost />
   </div>
 </template>

@@ -542,6 +542,14 @@ function paintPerf(now: number) {
 }
 
 onMounted(() => {
+  // 语音助手/Agent 拿不到本组件的模板 ref；注册桥，open_camera 才能启动摄像头。
+  // 这里只注册函数，不自动开摄像头（浏览器仍要求权限和用户手势）。
+  agent.setCameraController({
+    start: startCamera,
+    stop: stopCamera,
+    isActive: () => isActive.value,
+  })
+
   // 从 localStorage 恢复上次的标定；没标定过就保持 null，映射退化为原样
   calibration.load()
 
@@ -947,6 +955,7 @@ function describeCameraError(err: unknown): string {
 
 // 切页面/组件卸载时一定要关流，否则摄像头指示灯会一直亮着
 onBeforeUnmount(() => {
+  agent.setCameraController(null)
   if (perfRafId) {
     cancelAnimationFrame(perfRafId)
     perfRafId = 0

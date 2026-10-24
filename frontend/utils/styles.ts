@@ -98,9 +98,9 @@ export function normalizeStyleActions(
   const baseline = defaultStyleId(styles)
 
   const normalized = actions.map((action) => {
-    if (action.tool !== 'generate_image') return action
+    if (action.tool !== 'generate_image' && action.tool !== 'change_style') return action
 
-    const requested = action.args?.styleKey
+    const requested = action.args?.styleKey ?? action.args?.styleId
     let resolved = resolveStyleId(requested, styles)
 
     if (!resolved) {
