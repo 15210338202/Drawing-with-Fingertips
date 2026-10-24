@@ -23,5 +23,9 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()]
   },
-  modules: ['@pinia/nuxt']
+  modules: ['@pinia/nuxt'],
+  nitro: {
+    preset: 'cloudflare_pages',
+    prerender: { autoSubfolderIndex: false }, // 避免 Cloudflare 路由匹配问题
+  },
 })
