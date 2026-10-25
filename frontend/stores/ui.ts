@@ -5,6 +5,8 @@ import { ref } from 'vue'
  * 全局浮层状态：设置抽屉和作品结果 Sheet。
  * 只放“打开/关闭”和共享的结果图，不放业务函数。
  */
+export type GestureNoticeTone = 'info' | 'success' | 'warn' | 'error'
+
 export const useUIStore = defineStore('ui', () => {
   const isSettingsOpen = ref(false)
   const isResultOpen = ref(false)
@@ -13,10 +15,13 @@ export const useUIStore = defineStore('ui', () => {
   const resultSaving = ref(false)
   const toastMessage = ref('')
   const archiveFlash = ref(false)
+  const gestureNotice = ref('')
+  const gestureNoticeTone = ref<GestureNoticeTone>('info')
 
   let resultClearTimer: ReturnType<typeof setTimeout> | null = null
   let toastTimer: ReturnType<typeof setTimeout> | null = null
   let archiveFlashTimer: ReturnType<typeof setTimeout> | null = null
+  let gestureNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearResultTimer() {
     if (resultClearTimer) {
@@ -51,6 +56,37 @@ export const useUIStore = defineStore('ui', () => {
       archiveFlash.value = false
       archiveFlashTimer = null
     }, duration)
+  }
+
+  /**
+   * 手势/生成反馈统一放到页面顶部中央，避免贴在摄像头预览里被裁掉。
+   * duration=0 表示保持到下一次提示（生成中这类状态用）。
+   */
+  function showGestureNotice(
+    message: string,
+    tone: GestureNoticeTone = 'info',
+    duration = 4500,
+  ) {
+    if (gestureNoticeTimer) clearTimeout(gestureNoticeTimer)
+    gestureNoticeTimer = null
+
+    gestureNotice.value = message.length > 220 ? `${message.slice(0, 220)}…` : message
+    gestureNoticeTone.value = tone
+
+    if (duration > 0) {
+      gestureNoticeTimer = setTimeout(() => {
+        gestureNotice.value = ''
+        gestureNoticeTimer = null
+      }, duration)
+    }
+  }
+
+  function hideGestureNotice() {
+    if (gestureNoticeTimer) {
+      clearTimeout(gestureNoticeTimer)
+      gestureNoticeTimer = null
+    }
+    gestureNotice.value = ''
   }
 
   function openSettings() {
@@ -103,6 +139,8 @@ export const useUIStore = defineStore('ui', () => {
     resultSaving,
     toastMessage,
     archiveFlash,
+    gestureNotice,
+    gestureNoticeTone,
     openSettings,
     closeSettings,
     openResult,
@@ -112,5 +150,7 @@ export const useUIStore = defineStore('ui', () => {
     showToast,
     hideToast,
     flashArchive,
+    showGestureNotice,
+    hideGestureNotice,
   }
 })

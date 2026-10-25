@@ -62,16 +62,6 @@
         </div>
       </template>
 
-      <!-- 👍 触发反馈：绿光 + 顶部提示。生成中/失败也复用这一条，避免用户不知道请求已经发出 -->
-      <div
-        v-if="thumbsUpNotice"
-        class="pointer-events-none absolute left-1/2 top-2 z-20 max-w-[92%] -translate-x-1/2 rounded-full px-3 py-1 text-center text-xs font-medium text-white shadow-lg"
-        :class="thumbsUpNoticeClass"
-        aria-live="polite"
-      >
-        {{ thumbsUpNotice }}
-      </div>
-
       <!-- 性能 HUD：只在 ?perf=1 时出现，暂留作调参用，验收完再决定留还是删 -->
       <pre
         v-if="showPerf"
@@ -166,6 +156,7 @@ import type { DetectedHand } from '~/workers/hand.worker'
 import { useCalibrationStore } from '~/stores/calibration'
 import { useAgentStore } from '~/stores/agent'
 import { useAppStore } from '~/stores/app'
+import { useUIStore } from '~/stores/ui'
 import { useTTS } from '~/composables/useTTS'
 import { OneEuroFilter } from '~/utils/oneEuroFilter'
 
@@ -173,6 +164,7 @@ const gesture = useGestureStore()
 const calibration = useCalibrationStore()
 const agent = useAgentStore()
 const app = useAppStore()
+const ui = useUIStore()
 const { runAction } = useAgent()
 const { speak, stop: stopSpeaking } = useTTS()
 
@@ -256,41 +248,19 @@ const errorMessage = ref('')
 const captureError = ref('')
 
 // ===== 👍 → 生图 =====
-/** 顶部提示条；生成中/成功/失败都走它，比只在 console 里打日志更容易看见 */
-const thumbsUpNotice = ref('')
-type ThumbsUpNoticeTone = 'info' | 'success' | 'warn' | 'error'
-const thumbsUpNoticeTone = ref<ThumbsUpNoticeTone>('info')
-/** 触发瞬间给预览框加一圈绿光 */
+/** 触发瞬间给预览框加一圈绿光；文字提示统一走页面顶部的 GestureNotice */
 const thumbsUpFlash = ref(false)
 /** 防重入：runAction 直接调 generate_image 时不会设置 agent.executing，得自己锁 */
 const generatingByThumbsUp = ref(false)
-let thumbsUpNoticeTimer: ReturnType<typeof setTimeout> | null = null
 let thumbsUpFlashTimer: ReturnType<typeof setTimeout> | null = null
 
-const thumbsUpNoticeClass = computed(() => ({
-  info: 'bg-ink/85',
-  success: 'bg-sage/95',
-  warn: 'bg-amber-500/90',
-  error: 'bg-danger/90',
-}[thumbsUpNoticeTone.value]))
-
-/** 提示文字太长会把预览遮住，截断到 80 字；完整原因仍可在 console 看 */
+/** 提示放在页面顶部中央，摄像头收起/关闭后仍然看得见 */
 function showThumbsUpNotice(
   text: string,
-  tone: ThumbsUpNoticeTone = 'info',
+  tone: 'info' | 'success' | 'warn' | 'error' = 'info',
   autoClearMs = 4000,
 ) {
-  thumbsUpNotice.value = text.length > 80 ? `${text.slice(0, 80)}…` : text
-  thumbsUpNoticeTone.value = tone
-
-  if (thumbsUpNoticeTimer) clearTimeout(thumbsUpNoticeTimer)
-  thumbsUpNoticeTimer = null
-
-  if (autoClearMs > 0) {
-    thumbsUpNoticeTimer = setTimeout(() => {
-      thumbsUpNotice.value = ''
-    }, autoClearMs)
-  }
+  ui.showGestureNotice(text, tone, autoClearMs)
 }
 
 function flashThumbsUp() {
@@ -395,19 +365,14 @@ async function handleThumbsUp() {
   }
 }
 
-/** 关摄像头/卸载时把提示和计时器一起收掉，避免 setTimeout 在组件销毁后写 ref */
+/** 关摄像头时只收绿光和语音；顶部提示保留到计时结束，用户关了摄像头也能看到 */
 function clearThumbsUpFeedback() {
-  thumbsUpNotice.value = ''
   thumbsUpFlash.value = false
-  if (thumbsUpNoticeTimer) {
-    clearTimeout(thumbsUpNoticeTimer)
-    thumbsUpNoticeTimer = null
-  }
   if (thumbsUpFlashTimer) {
     clearTimeout(thumbsUpFlashTimer)
     thumbsUpFlashTimer = null
   }
-  // 关摄像头/离开页面时把没念完的反馈语音也停掉
+  // 关摄像头时把没念完的反馈语音停掉
   stopSpeaking()
 }
 
@@ -977,6 +942,8 @@ onBeforeUnmount(() => {
     perfRafId = 0
   }
   stopCamera()
+  // 离开画室时才清掉全局提示；单纯关闭摄像头不清，保证提示仍可见
+  ui.hideGestureNotice()
   // Worker 占着 WASM 和显存，整个组件销毁时一起释放
   close()
 })
