@@ -56,7 +56,7 @@
       "脸谱",
       "戏曲",
       "传统",
-      "sichuan opera"
+      "opera"
     ],
     "themes": [
       "传统",
@@ -516,5 +516,2235 @@
     "negative": "",
     "source": "自建",
     "styleKey": "modernist-01"
+  },
+  {
+    "id": "cy-03",
+    "title": "巴蜀风情",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "巴蜀",
+      "火锅",
+      "熊猫",
+      "川剧",
+      "市井",
+      "sichuan",
+      "chengdu",
+      "panda"
+    ],
+    "themes": [
+      "城市",
+      "人物",
+      "日常",
+      "传统"
+    ],
+    "styleModifiers": "warm red orange hues, vibrant color palette, rounded lines, soft textures, expressive brushwork, intimate lighting, dynamic composition",
+    "contentHints": "panda eating at hot pot table",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "chuanyu-03"
+  },
+  {
+    "id": "hb-03",
+    "title": "彩铅绘本",
+    "category": "绘本",
+    "tags": [
+      "彩铅",
+      "绘本",
+      "儿童插画",
+      "柔和",
+      "排线",
+      "蜡质",
+      "pencil",
+      "picture-book"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "幻想"
+    ],
+    "styleModifiers": "color pencil, fine lines, soft brushwork, wax texture, warm color palette, bright lighting, rounded composition, hand-drawn rendering",
+    "contentHints": "a cute little bear",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-03"
+  },
+  {
+    "id": "hb-04",
+    "title": "简笔卡通绘本",
+    "category": "绘本",
+    "tags": [
+      "绘本",
+      "简笔",
+      "卡通",
+      "圆润",
+      "萌系",
+      "大色块",
+      "粗线条",
+      "cartoon",
+      "simple",
+      "kids-book"
+    ],
+    "themes": [
+      "动物",
+      "人物",
+      "日常"
+    ],
+    "styleModifiers": "bold lines, rounded shapes, flat colors, exaggerated features, vibrant palette, whimsical textures, playful brushwork, simple composition, soft lighting",
+    "contentHints": "animals playing together",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-04"
+  },
+  {
+    "id": "zy-02",
+    "title": "软萌团子",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "软萌",
+      "圆滚滚",
+      "可爱",
+      "团子",
+      "毛茸茸",
+      "kawaii",
+      "soft",
+      "plush"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "幻想"
+    ],
+    "styleModifiers": "soft pastel colors, low saturation, rounded shapes, fluffy texture, warm lighting, gentle brushwork, soothing composition, whimsical rendering",
+    "contentHints": "small ball basking in sunlight",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-02"
+  },
+  {
+    "id": "zy-03",
+    "title": "温暖小物",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "小物",
+      "温暖",
+      "奶油色",
+      "静物感",
+      "安心",
+      "cozy",
+      "warm",
+      "still-life"
+    ],
+    "themes": [
+      "静物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "warm creamy colors, soft lighting, delicate textures, gentle brushwork, soothing composition, subtle shading",
+    "contentHints": "steaming milk and bread",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-03"
+  },
+  {
+    "id": "zy-04",
+    "title": "治愈手帐",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "手帐",
+      "贴纸",
+      "手写",
+      "可爱",
+      "胶带",
+      "日记",
+      "journal",
+      "planner",
+      "stationery"
+    ],
+    "themes": [
+      "日常",
+      "人物",
+      "静物"
+    ],
+    "styleModifiers": "watercolor washes, hand-drawn lines, warm cream palette, soft paper grain, mixed-media layering, gentle lighting, organic handcrafted texture, journal-like composition, relaxed rendering",
+    "contentHints": "page filled with stickers",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-04"
+  },
+  {
+    "id": "mh-02",
+    "title": "星云幻想",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "星云",
+      "银河",
+      "发光",
+      "渐变",
+      "宇宙",
+      "星尘",
+      "nebula",
+      "galaxy",
+      "cosmic"
+    ],
+    "themes": [
+      "幻想",
+      "抽象",
+      "自然"
+    ],
+    "styleModifiers": "cosmic color blending, purple blue pink gradient, luminous particles, soft glow, dreamy ethereal atmosphere, celestial color harmony, smooth luminous rendering, deep-space inspired palette",
+    "contentHints": "swirling star cloud",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-02"
+  },
+  {
+    "id": "mh-03",
+    "title": "极光梦境",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "极光",
+      "梦境",
+      "光带",
+      "夜空",
+      "雪原",
+      "流动感",
+      "aurora",
+      "dreamy",
+      "polar-night"
+    ],
+    "themes": [
+      "自然",
+      "风景",
+      "幻想"
+    ],
+    "styleModifiers": "dreamy, ethereal, watercolor, soft brushwork, pastel color palette, gentle lighting, surreal composition, gradient rendering, shimmering texture, celestial inspiration",
+    "contentHints": "Aurora over snowy plain",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-03"
+  },
+  {
+    "id": "mh-04",
+    "title": "萤火森林",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "萤火虫",
+      "森林",
+      "发光",
+      "夜晚",
+      "雾气",
+      "微光",
+      "firefly",
+      "forest",
+      "firefly-glow"
+    ],
+    "themes": [
+      "自然",
+      "动物",
+      "幻想"
+    ],
+    "styleModifiers": "dark muted colors, warm yellow glow, soft mist, gentle brushwork, whimsical composition, dreamy lighting, textured rendering",
+    "contentHints": "fireflies on forest path",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-04"
+  },
+  {
+    "id": "wc-02",
+    "title": "水彩花卉",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "花卉",
+      "植物",
+      "清新",
+      "晕染",
+      "花朵",
+      "watercolor",
+      "floral",
+      "botanical"
+    ],
+    "themes": [
+      "自然",
+      "静物",
+      "风景"
+    ],
+    "styleModifiers": "watercolor, soft brushstrokes, translucent colors, layered petals, subtle shading, delicate texture, gentle lighting, minimalist composition, loose rendering",
+    "contentHints": "small bouquet of daisies",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "watercolor-02"
+  },
+  {
+    "id": "wc-03",
+    "title": "水彩风景",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "风景写生",
+      "山水",
+      "倒影",
+      "远山",
+      "通透",
+      "watercolor",
+      "landscape",
+      "waterscape"
+    ],
+    "themes": [
+      "风景",
+      "自然",
+      "城市"
+    ],
+    "styleModifiers": "watercolor, soft brushwork, natural gradient, transparent sky, serene color palette, loose strokes, atmospheric lighting, composition with negative space",
+    "contentHints": "distant mountains over lake",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "watercolor-03"
+  },
+  {
+    "id": "wc-04",
+    "title": "水彩速写",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "速写",
+      "线条",
+      "淡彩",
+      "街景",
+      "随性",
+      "watercolor",
+      "sketch",
+      "urban-sketch"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "城市"
+    ],
+    "styleModifiers": "watercolor, loose brushstrokes, soft colors, quick layering, spontaneous strokes, expressive lines, subtle texture, gentle lighting, minimalist composition, hand-painted feel",
+    "contentHints": "cozy street corner cafe",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "watercolor-04"
+  },
+  {
+    "id": "ab-04",
+    "title": "几何抽象",
+    "category": "抽象",
+    "tags": [
+      "几何",
+      "抽象",
+      "构成",
+      "色块",
+      "秩序",
+      "三角形",
+      "geometric",
+      "abstract",
+      "shapes"
+    ],
+    "themes": [
+      "抽象",
+      "静物"
+    ],
+    "styleModifiers": "geometric shapes, ordered composition, pure color relations, rational harmony, flat texture, minimal brushwork, vibrant color palette, balanced lighting",
+    "contentHints": "geometric color blocks",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-04"
+  },
+  {
+    "id": "ab-05",
+    "title": "肌理抽象",
+    "category": "抽象",
+    "tags": [
+      "肌理",
+      "抽象",
+      "颗粒",
+      "材质",
+      "刮擦",
+      "厚颜料",
+      "texture",
+      "abstract",
+      "tactile"
+    ],
+    "themes": [
+      "抽象",
+      "自然"
+    ],
+    "styleModifiers": "thick impasto, rough texture, expressive brushwork, layered color palette, dramatic lighting, abstract composition, heavy rendering, gritty grain, cracked surface",
+    "contentHints": "thick textured color block",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-05"
+  },
+  {
+    "id": "su-02",
+    "title": "达利式超现实",
+    "category": "超现实",
+    "tags": [
+      "达利",
+      "超现实",
+      "变形",
+      "梦境",
+      "融化",
+      "时钟",
+      "dali",
+      "surreal",
+      "melting"
+    ],
+    "themes": [
+      "幻想",
+      "人物",
+      "抽象"
+    ],
+    "styleModifiers": "surrealistic painting, soft melting forms, impossible spatial combinations, hyperreal detail, dreamlike distortion, uncanny atmosphere, vivid color, dramatic lighting",
+    "contentHints": "melting clock on tree branch",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-02"
+  },
+  {
+    "id": "su-03",
+    "title": "空间悖论",
+    "category": "超现实",
+    "tags": [
+      "超现实",
+      "悖论",
+      "空间",
+      "错位",
+      "循环",
+      "透视",
+      "埃舍尔",
+      "paradox",
+      "escher",
+      "impossible"
+    ],
+    "themes": [
+      "抽象",
+      "幻想",
+      "风景"
+    ],
+    "styleModifiers": "surreal, Escher-like, cyclical, impossible geometry, inverted perspective, dizzying, dreamlike, abstract, paradoxical, mind-bending, distorted, looping, stair-like, fragmented, disjointed, unconventional",
+    "contentHints": "endless staircase looping upwards",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-03"
+  },
+  {
+    "id": "su-04",
+    "title": "漂浮超现实",
+    "category": "超现实",
+    "tags": [
+      "超现实",
+      "漂浮",
+      "失重",
+      "悬浮",
+      "梦境",
+      "失序",
+      "悬浮物",
+      "floating",
+      "weightless",
+      "surreal"
+    ],
+    "themes": [
+      "幻想",
+      "日常",
+      "人物"
+    ],
+    "styleModifiers": "soft lighting, gentle shadows, ethereal texture, delicate brushwork, muted color palette, surreal composition, dreamy rendering",
+    "contentHints": "books and teacups floating",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-04"
+  },
+  {
+    "id": "gf-03",
+    "title": "写意山水",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "写意",
+      "山水",
+      "皴擦",
+      "云雾",
+      "留白",
+      "ink",
+      "shanshui"
+    ],
+    "themes": [
+      "风景",
+      "自然",
+      "传统"
+    ],
+    "styleModifiers": "ink wash, subtle texture, expressive brushwork, muted color palette, soft lighting, atmospheric composition, loose rendering, delicate layering, ethereal effects",
+    "contentHints": "misty mountain scene",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "guofeng-03"
+  },
+  {
+    "id": "gf-04",
+    "title": "工笔花鸟",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "工笔",
+      "花鸟",
+      "精细",
+      "设色",
+      "晕染",
+      "宋画",
+      "gongbi",
+      "fine-brush",
+      "bird-flower"
+    ],
+    "themes": [
+      "自然",
+      "动物",
+      "传统"
+    ],
+    "styleModifiers": "fine brushwork, delicate lines, layered color washes, intricate details, realistic rendering, subtle texture, soft lighting, harmonious color palette",
+    "contentHints": "bird on flower branch",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "guofeng-04"
+  },
+  {
+    "id": "cy-04",
+    "title": "盖碗茶馆",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "盖碗茶",
+      "茶馆",
+      "竹椅",
+      "市井",
+      "烟火气",
+      "成都",
+      "teahouse",
+      "teacup",
+      "chengdu"
+    ],
+    "themes": [
+      "日常",
+      "人物",
+      "传统"
+    ],
+    "styleModifiers": "warm color palette, relaxed brushwork, soft lighting, serene composition, loose texture, traditional medium, subtle smoke effects, muted tones, organic rendering",
+    "contentHints": "tea on a chair",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "chuanyu-04"
+  },
+  {
+    "id": "ms-02",
+    "title": "皮影戏",
+    "category": "民俗",
+    "tags": [
+      "民俗",
+      "皮影",
+      "戏台",
+      "剪纸",
+      "透光",
+      "剪影",
+      "民间戏",
+      "puppet",
+      "silhouette",
+      "paper-figure"
+    ],
+    "themes": [
+      "传统",
+      "人物",
+      "动物"
+    ],
+    "styleModifiers": "cut-out silhouettes, warm translucent colors, flat forms, rustic stage feel, decorative, paper-like texture, dramatic lighting, traditional composition",
+    "contentHints": "dancing figures on stage",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-02"
+  },
+  {
+    "id": "ms-03",
+    "title": "泥塑彩绘",
+    "category": "民俗",
+    "tags": [
+      "民俗",
+      "泥塑",
+      "彩绘",
+      "民间",
+      "质朴",
+      "憨态",
+      "陶土",
+      "clay",
+      "folk-art",
+      "ceramic"
+    ],
+    "themes": [
+      "传统",
+      "人物",
+      "动物"
+    ],
+    "styleModifiers": "folkloric, rounded clay sculpting, high-saturation painted patterns, earthy texture, rustic atmosphere, whimsical brushwork, vibrant color palette, soft lighting, naive composition, detailed rendering",
+    "contentHints": "colorful tiger figurine",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-03"
+  },
+  {
+    "id": "ms-04",
+    "title": "蓝印花布",
+    "category": "民俗",
+    "tags": [
+      "民俗",
+      "蓝印花布",
+      "扎染",
+      "纹样",
+      "靛蓝",
+      "白花",
+      "布艺",
+      "indigo",
+      "batik",
+      "textile"
+    ],
+    "themes": [
+      "传统",
+      "自然",
+      "日常"
+    ],
+    "styleModifiers": "indigo resist-dyed textile pattern, white floral and geometric motifs on deep indigo ground, hand-blocked folk print texture, crisp repeating pattern, matte dyed cloth surface, fresh elegant traditional craft aesthetic",
+    "contentHints": "a blue-and-white resist-dyed cloth with floral patterns",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-04"
+  },
+  {
+    "id": "cl-02",
+    "title": "文艺复兴",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "文艺复兴",
+      "古典",
+      "圣母",
+      "透视",
+      "均衡",
+      "达芬奇",
+      "renaissance",
+      "classical",
+      "perspective"
+    ],
+    "themes": [
+      "人物",
+      "静物",
+      "传统"
+    ],
+    "styleModifiers": "linear perspective, soft chiaroscuro, elegant figurative, harmonious composition, balanced rendering, classical technique, subtle texture, muted color palette, warm lighting",
+    "contentHints": "Renaissance figure portrait",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-02"
+  },
+  {
+    "id": "cl-03",
+    "title": "巴洛克",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "巴洛克",
+      "戏剧性",
+      "动势",
+      "明暗",
+      "对角线",
+      "华丽",
+      "baroque",
+      "dynamic",
+      "tenebrism"
+    ],
+    "themes": [
+      "人物",
+      "静物"
+    ],
+    "styleModifiers": "dramatic chiaroscuro, intense contrast, diagonal composition, ornate details, rich emotional tension, bold brushwork, vibrant color palette, dynamic lighting",
+    "contentHints": "dramatic figure scene",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-03"
+  },
+  {
+    "id": "cl-04",
+    "title": "新古典",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "新古典",
+      "理性",
+      "庄重",
+      "素描",
+      "轮廓线",
+      "典雅",
+      "neoclassical",
+      "classical",
+      "elegant"
+    ],
+    "themes": [
+      "人物",
+      "传统",
+      "静物"
+    ],
+    "styleModifiers": "classical realism, restrained composition, clear outline, solemn atmosphere, muted earth tones, soft lighting, subtle texture, delicate brushwork",
+    "contentHints": "a solemn figure",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-04"
+  },
+  {
+    "id": "im-02",
+    "title": "光色印象",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "光色",
+      "瞬间",
+      "外光",
+      "笔触",
+      "莫奈",
+      "impression",
+      "monet",
+      "light"
+    ],
+    "themes": [
+      "风景",
+      "自然",
+      "日常"
+    ],
+    "styleModifiers": "impressionist painting, fleeting light, delicate brushstrokes, vibrant colors, airy texture, soft focus, high contrast, warm lighting, expressive composition",
+    "contentHints": "garden corner",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-02"
+  },
+  {
+    "id": "im-03",
+    "title": "后印象",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "后印象",
+      "主观",
+      "色彩",
+      "梵高",
+      "旋涡",
+      "情感",
+      "post-imp",
+      "van-gogh",
+      "expressive"
+    ],
+    "themes": [
+      "风景",
+      "人物",
+      "静物"
+    ],
+    "styleModifiers": "expressive brushwork, vibrant colors, swirling lines, exaggerated forms, emotive textures, dynamic composition, intense lighting",
+    "contentHints": "starry night sky",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-03"
+  },
+  {
+    "id": "im-04",
+    "title": "写生印象",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "写生",
+      "印象",
+      "户外",
+      "速写",
+      "现场感",
+      "概括",
+      "plein-air",
+      "sketch",
+      "outdoor"
+    ],
+    "themes": [
+      "风景",
+      "城市",
+      "日常"
+    ],
+    "styleModifiers": "impressionist, outdoor sketch-like brushstrokes, broad color blocks, vivid on-site feel, fresh and bright color tones, loose rendering, natural lighting",
+    "contentHints": "riverbank scene",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-04"
+  },
+  {
+    "id": "ol-02",
+    "title": "写实油画",
+    "category": "油画",
+    "tags": [
+      "写实",
+      "油画",
+      "细腻",
+      "质感",
+      "光影",
+      "逼真",
+      "realism",
+      "oil-painting",
+      "detailed"
+    ],
+    "themes": [
+      "人物",
+      "静物",
+      "风景"
+    ],
+    "styleModifiers": "realistic oil painting, delicate texture, precise rendering, rich color layers, photorealistic lighting, subtle shading, detailed brushwork",
+    "contentHints": "a realistic red apple",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "oil-02"
+  },
+  {
+    "id": "ol-03",
+    "title": "油画风景",
+    "category": "油画",
+    "tags": [
+      "油画",
+      "写生",
+      "色块",
+      "景深",
+      "田野",
+      "开阔",
+      "oil-painting",
+      "landscape",
+      "scenery"
+    ],
+    "themes": [
+      "风景",
+      "自然",
+      "城市"
+    ],
+    "styleModifiers": "broad brushstrokes, rich color layers, thick and thin textures, expansive composition, vibrant palette, deep depth of field, expressive rendering",
+    "contentHints": "open field landscape",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "oil-03"
+  },
+  {
+    "id": "ol-04",
+    "title": "油画静物",
+    "category": "油画",
+    "tags": [
+      "静物画",
+      "油画",
+      "水果",
+      "布褶",
+      "陶罐",
+      "光影",
+      "still-life",
+      "oil-painting",
+      "classic"
+    ],
+    "themes": [
+      "静物",
+      "日常"
+    ],
+    "styleModifiers": "thick impasto, classical composition, soft lighting, warm color palette, intricate folds, textured brushwork, realistic rendering, muted tones, subtle shading",
+    "contentHints": "fruit on a plate",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "oil-04"
+  },
+  {
+    "id": "an-02",
+    "title": "Q版二次元",
+    "category": "二次元",
+    "tags": [
+      "Q版",
+      "二次元",
+      "萌系",
+      "大头",
+      "二头身",
+      "可爱",
+      "chibi",
+      "anime",
+      "cute"
+    ],
+    "themes": [
+      "人物",
+      "动物",
+      "日常"
+    ],
+    "styleModifiers": "rounded shapes, bright flat colors, exaggerated expressions, cartoonish proportions, smooth textures, vibrant lighting, dynamic composition, bold brushwork, pastel color palette, whimsical rendering",
+    "contentHints": "little witch character",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "anime-02"
+  },
+  {
+    "id": "an-03",
+    "title": "治愈番二次元",
+    "category": "二次元",
+    "tags": [
+      "治愈番",
+      "二次元",
+      "清新",
+      "日常感",
+      "光影",
+      "番剧",
+      "anime",
+      "daily-life",
+      "healing"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "soft pastel colors, gentle lighting, delicate shading, warm textures, serene composition, subtle brushwork, soothing color palette, calming atmosphere",
+    "contentHints": "sunny classroom after school",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "anime-03"
+  },
+  {
+    "id": "an-04",
+    "title": "复古动漫",
+    "category": "二次元",
+    "tags": [
+      "二次元",
+      "复古",
+      "动漫",
+      "赛璐璐",
+      "90年代",
+      "怀旧",
+      "色差",
+      "retro-anime",
+      "cel",
+      "90s"
+    ],
+    "themes": [
+      "人物",
+      "幻想",
+      "游戏"
+    ],
+    "styleModifiers": "hand-painted cel-shaded texture, subtle color variation, nostalgic color palette, clear lines, retro composition, soft lighting, vintage rendering",
+    "contentHints": "anime character portrait",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "anime-04"
+  },
+  {
+    "id": "px-02",
+    "title": "等距像素",
+    "category": "像素",
+    "tags": [
+      "等距",
+      "像素",
+      "2.5D",
+      "建筑",
+      "地图",
+      "网格",
+      "isometric",
+      "pixel",
+      "game-map"
+    ],
+    "themes": [
+      "游戏",
+      "城市",
+      "幻想"
+    ],
+    "styleModifiers": "pixel art, 2.5D perspective, grid-aligned, low-resolution, textured, vibrant colors, uniform lighting, geometric composition, detailed rendering",
+    "contentHints": "small pixel town",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pixel-02"
+  },
+  {
+    "id": "px-03",
+    "title": "像素场景",
+    "category": "像素",
+    "tags": [
+      "像素",
+      "场景",
+      "地图",
+      "背景",
+      "村庄",
+      "游戏感",
+      "pixel-art",
+      "background",
+      "scene"
+    ],
+    "themes": [
+      "游戏",
+      "风景",
+      "城市"
+    ],
+    "styleModifiers": "pixel art, game map style, bright colors, pixelated textures, digital rendering, grid-based composition, vibrant lighting",
+    "contentHints": "village scene",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pixel-03"
+  },
+  {
+    "id": "px-04",
+    "title": "像素角色",
+    "category": "像素",
+    "tags": [
+      "像素",
+      "角色",
+      "头像",
+      "像素画",
+      "五官",
+      "块面",
+      "sprite",
+      "pixel",
+      "avatar"
+    ],
+    "themes": [
+      "人物",
+      "动物",
+      "游戏"
+    ],
+    "styleModifiers": "pixelated, large-scale, blocky features, high contrast, simplified forms, bold lines, vibrant colors, dramatic lighting, abstract composition, digital rendering",
+    "contentHints": "pixel art character portrait",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pixel-04"
+  },
+  {
+    "id": "sf-02",
+    "title": "赛博机甲",
+    "category": "赛博",
+    "tags": [
+      "赛博",
+      "机甲",
+      "科技",
+      "装甲",
+      "机械",
+      "霓虹",
+      "mecha",
+      "cyberpunk",
+      "robot"
+    ],
+    "themes": [
+      "未来",
+      "人物",
+      "游戏"
+    ],
+    "styleModifiers": "cyberpunk, metallic armor, neon-lit, industrial feel, mechanical details, glowing pipes, futuristic, high-tech, dark alleys, moody lighting, sharp lines, bold colors",
+    "contentHints": "neon lit robot",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "cyber-02"
+  },
+  {
+    "id": "sf-03",
+    "title": "赛博义体",
+    "category": "赛博",
+    "tags": [
+      "义体",
+      "赛博",
+      "改造",
+      "机械",
+      "义肢",
+      "植入",
+      "cyborg",
+      "cyberpunk",
+      "implant"
+    ],
+    "themes": [
+      "人物",
+      "未来"
+    ],
+    "styleModifiers": "cyberpunk, metallic, mechanical, futuristic, precise, cold, industrial, high-tech, digital, synthetic, robotic, intricate details, neon lighting, dark composition, sharp rendering",
+    "contentHints": "person with mechanical limbs",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "cyber-03"
+  },
+  {
+    "id": "sf-04",
+    "title": "赛博故障",
+    "category": "赛博",
+    "tags": [
+      "故障",
+      "赛博",
+      "数据",
+      "失真",
+      "扫描线",
+      "RGB分离",
+      "glitch",
+      "cyberpunk",
+      "distortion"
+    ],
+    "themes": [
+      "抽象",
+      "未来",
+      "幻想"
+    ],
+    "styleModifiers": "glitch art, digital distortion, pixelated, scan lines, RGB separation, distorted, torn, futuristic, neon, high-tech, abstract, fragmented, chaotic, vibrant, dark",
+    "contentHints": "distorted face",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "cyber-04"
+  },
+  {
+    "id": "md-02",
+    "title": "野兽派",
+    "category": "现代主义",
+    "tags": [
+      "现代主义",
+      "野兽派",
+      "色彩",
+      "大胆",
+      "马蒂斯",
+      "纯色",
+      "笔触",
+      "fauvism",
+      "matisse",
+      "bold-color"
+    ],
+    "themes": [
+      "人物",
+      "静物",
+      "风景"
+    ],
+    "styleModifiers": "bold brushstrokes, vibrant color palette, flat matte finish, expressive textures, abstract composition, dynamic lighting, geometric rendering, bold color contrasts, emotive strokes",
+    "contentHints": "vibrant portrait",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "modernist-02"
+  },
+  {
+    "id": "md-03",
+    "title": "表现主义",
+    "category": "现代主义",
+    "tags": [
+      "现代主义",
+      "表现主义",
+      "情感",
+      "扭曲",
+      "呐喊",
+      "粗笔触",
+      "不安",
+      "expression",
+      "emotional",
+      "distorted"
+    ],
+    "themes": [
+      "人物",
+      "抽象",
+      "幻想"
+    ],
+    "styleModifiers": "distorted forms, expressive brushstrokes, vibrant colors, intense lighting, abstract composition, emotive rendering, heavy textures, dynamic movement",
+    "contentHints": "twisted human face",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "modernist-03"
+  },
+  {
+    "id": "pp-02",
+    "title": "丝网波普",
+    "category": "波普",
+    "tags": [
+      "丝网",
+      "波普",
+      "印刷",
+      "沃霍尔",
+      "网点",
+      "重复",
+      "silkscreen",
+      "pop-art",
+      "warhol"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "城市"
+    ],
+    "styleModifiers": "silkscreen printing, flat color blocks, high saturation, repetitive patterns, industrial texture, bold brushwork, vibrant color palette, grid composition",
+    "contentHints": "repeated portrait arrangement",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-02"
+  },
+  {
+    "id": "pp-03",
+    "title": "漫画波普",
+    "category": "波普",
+    "tags": [
+      "漫画",
+      "波普",
+      "分格",
+      "网点",
+      "拟声词",
+      "描边",
+      "comic",
+      "pop-art",
+      "halftone"
+    ],
+    "themes": [
+      "人物",
+      "城市",
+      "日常"
+    ],
+    "styleModifiers": "comic book pop, bold black outlines, print dot texture, exaggerated rendering, commercial poster feel, graphic composition, vibrant color palette, high contrast lighting",
+    "contentHints": "comic panel scene",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-03"
+  },
+  {
+    "id": "pp-04",
+    "title": "荧光波普",
+    "category": "波普",
+    "tags": [
+      "荧光",
+      "波普",
+      "撞色",
+      "高饱和",
+      "荧光色",
+      "炫目",
+      "neon",
+      "pop-art",
+      "fluorescent"
+    ],
+    "themes": [
+      "抽象",
+      "人物",
+      "城市"
+    ],
+    "styleModifiers": "neon color palette, high saturation, flat brushstrokes, bold contrasts, graphic patterns, vibrant textures, dynamic composition, abstract rendering",
+    "contentHints": "vibrant pop pattern",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-04"
+  },
+  {
+    "id": "mn-02",
+    "title": "极简几何",
+    "category": "极简",
+    "tags": [
+      "极简",
+      "几何",
+      "构成",
+      "秩序",
+      "比例",
+      "留白",
+      "minimal",
+      "geometric",
+      "composition"
+    ],
+    "themes": [
+      "抽象",
+      "静物"
+    ],
+    "styleModifiers": "minimalist, geometric, restrained color palette, strict proportions, ample negative space, modern, clean lines, simple shapes, subtle texture, soft lighting, balanced composition",
+    "contentHints": "simple geometric forms",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "minimal-02"
+  },
+  {
+    "id": "mn-03",
+    "title": "极简单色",
+    "category": "极简",
+    "tags": [
+      "极简",
+      "单色",
+      "黑白",
+      "对比",
+      "剪影",
+      "克制",
+      "monochrome",
+      "minimal",
+      "black-white"
+    ],
+    "themes": [
+      "抽象",
+      "静物",
+      "人物"
+    ],
+    "styleModifiers": "minimalist, monochromatic, high contrast, simple shapes, pure forms, subtle texture, soft lighting, empty space, clean composition, delicate brushwork, muted color palette",
+    "contentHints": "single color silhouette",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "minimal-03"
+  },
+  {
+    "id": "mn-04",
+    "title": "一笔画",
+    "category": "极简",
+    "tags": [
+      "一笔画",
+      "连续",
+      "线条",
+      "极简",
+      "韵律",
+      "轮廓",
+      "one-line",
+      "minimal",
+      "line"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "动物"
+    ],
+    "styleModifiers": "continuous line, minimalist, flowing, concise, rhythmic, simplified, monoline, fluid, smooth, delicate, refined, subtle, elegant, sparse, economic, expressive",
+    "contentHints": "small cat outline",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "minimal-04"
+  },
+  {
+    "id": "hb-05",
+    "title": "拼贴绘本",
+    "category": "绘本",
+    "tags": [
+      "拼贴",
+      "绘本",
+      "纸艺",
+      "艾瑞卡尔",
+      "撕纸",
+      "毛毛虫",
+      "collage",
+      "picture-book",
+      "eric-carle"
+    ],
+    "themes": [
+      "动物",
+      "自然",
+      "幻想"
+    ],
+    "styleModifiers": "collage texture, layered paper, naive handwork, vibrant colors, bold brushstrokes, playful composition, expressive rendering",
+    "contentHints": "colorful caterpillar",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-05"
+  },
+  {
+    "id": "zy-05",
+    "title": "治愈森林",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "森林",
+      "林间",
+      "温馨",
+      "小屋",
+      "暖绿",
+      "woodland",
+      "forest",
+      "cozy"
+    ],
+    "themes": [
+      "动物",
+      "自然",
+      "幻想"
+    ],
+    "styleModifiers": "soft warm green tones, fluffy textures, gentle brushwork, serene lighting, cozy composition, whimsical rendering",
+    "contentHints": "forest with small fox",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-05"
+  },
+  {
+    "id": "mh-05",
+    "title": "深海发光",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "深海",
+      "发光",
+      "水母",
+      "荧光",
+      "幽蓝",
+      "海洋",
+      "glow",
+      "deep-sea",
+      "ocean-glow"
+    ],
+    "themes": [
+      "幻想",
+      "自然",
+      "动物"
+    ],
+    "styleModifiers": "dark blues, glowing accents, soft brushwork, ethereal lighting, dreamy composition, vibrant purple hues, shimmering texture",
+    "contentHints": "glowing jellyfish in deep sea",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-05"
+  },
+  {
+    "id": "wc-05",
+    "title": "水彩萌宠",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "萌宠",
+      "小猫",
+      "小狗",
+      "晕染",
+      "柔和",
+      "watercolor",
+      "pet",
+      "cute-animal"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "watercolor, transparent wash, soft brushwork, pastel color palette, gentle lighting, whimsical composition, loose rendering",
+    "contentHints": "cute little kitten",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "watercolor-05"
+  },
+  {
+    "id": "gf-05",
+    "title": "敦煌壁画",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "敦煌",
+      "壁画",
+      "飞天",
+      "藻井",
+      "矿物色",
+      "斑驳",
+      "dunhuang",
+      "mural",
+      "fresco"
+    ],
+    "themes": [
+      "传统",
+      "人物",
+      "动物"
+    ],
+    "styleModifiers": "mineral color palette, faded texture, classic patterns, solemn composition, luxurious rendering, subtle brushwork, muted lighting",
+    "contentHints": "Dunhuang flying figure dancing",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "guofeng-05"
+  },
+  {
+    "id": "cy-05",
+    "title": "川味火锅",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "火锅",
+      "川味",
+      "麻辣",
+      "市井",
+      "九宫格",
+      "热气",
+      "hotpot",
+      "sichuan",
+      "spicy"
+    ],
+    "themes": [
+      "日常",
+      "人物",
+      "城市"
+    ],
+    "styleModifiers": "vibrant colors, dynamic brushwork, bold textures, steamy lighting, expressive composition, loose rendering, warm color palette, energetic technique",
+    "contentHints": "boiling hot pot",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "chuanyu-05"
+  },
+  {
+    "id": "ms-05",
+    "title": "糖画",
+    "category": "民俗",
+    "tags": [
+      "民俗",
+      "糖画",
+      "糖人",
+      "民间",
+      "街头",
+      "金黄",
+      "手工艺",
+      "sugar",
+      "candy",
+      "folk-craft"
+    ],
+    "themes": [
+      "传统",
+      "动物",
+      "日常"
+    ],
+    "styleModifiers": "golden sugar-syrup line work, glossy translucent caramel texture, fluid poured lines, warm amber highlights, crisp contour drawing, folk craft aesthetic, nostalgic handmade market feel",
+    "contentHints": "a candy-sugar dragon figure",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-05"
+  },
+  {
+    "id": "cl-05",
+    "title": "洛可可",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "洛可可",
+      "华丽",
+      "粉彩",
+      "繁复",
+      "曲线",
+      "宫廷",
+      "rococo",
+      "ornate",
+      "pastel"
+    ],
+    "themes": [
+      "人物",
+      "静物",
+      "传统"
+    ],
+    "styleModifiers": "soft pastel colors, intricate ornaments, delicate curves, romantic lighting, luxurious textures, whimsical brushwork, ornate details, dreamy composition, elegant rendering",
+    "contentHints": "elegant lady portrait",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-05"
+  },
+  {
+    "id": "im-05",
+    "title": "印象人像",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "印象",
+      "人像",
+      "光色",
+      "柔和",
+      "朦胧",
+      "肖像",
+      "impression",
+      "portrait",
+      "soft-light"
+    ],
+    "themes": [
+      "人物",
+      "日常"
+    ],
+    "styleModifiers": "soft light and shadow, blurry brushstrokes, vibrant colors, natural lighting, loose composition, expressive rendering, impressionist technique",
+    "contentHints": "girl in sunlight",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-05"
+  },
+  {
+    "id": "ol-05",
+    "title": "油画人物",
+    "category": "油画",
+    "tags": [
+      "油画",
+      "肖像",
+      "厚涂",
+      "肌肤",
+      "光影",
+      "端庄",
+      "oil-painting",
+      "portrait",
+      "figure"
+    ],
+    "themes": [
+      "人物",
+      "静物"
+    ],
+    "styleModifiers": "thick impasto texture, subtle light and shadow, rich color layers, formal composition, realistic rendering, oil painting medium, expressive brushwork, muted color palette, dramatic lighting",
+    "contentHints": "portrait of a person",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "oil-05"
+  },
+  {
+    "id": "ab-06",
+    "title": "抽象线条",
+    "category": "抽象",
+    "tags": [
+      "抽象",
+      "线条",
+      "涂鸦",
+      "表现",
+      "节奏",
+      "交织",
+      "line-art",
+      "abstract",
+      "scribble"
+    ],
+    "themes": [
+      "抽象",
+      "幻想"
+    ],
+    "styleModifiers": "expressive brushstrokes, vibrant color palette, dynamic composition, rhythmic patterns, abstract textures, free-flowing lines, mixed media technique, bold rendering",
+    "contentHints": "colorful layered lines",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-06"
+  },
+  {
+    "id": "su-05",
+    "title": "马格利特式",
+    "category": "超现实",
+    "tags": [
+      "马格利特",
+      "超现实",
+      "悖论",
+      "云朵",
+      "悬浮",
+      "冷静",
+      "magritte",
+      "surreal",
+      "cloud"
+    ],
+    "themes": [
+      "幻想",
+      "人物",
+      "风景"
+    ],
+    "styleModifiers": "surreal, dreamy, ethereal, soft brushwork, muted color palette, subtle lighting, paradoxical composition, eerie rendering",
+    "contentHints": "clouds floating in a room",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-05"
+  },
+  {
+    "id": "md-04",
+    "title": "未来主义",
+    "category": "现代主义",
+    "tags": [
+      "现代主义",
+      "未来主义",
+      "速度",
+      "动感",
+      "机械",
+      "叠影",
+      "疾驰",
+      "futurism",
+      "speed",
+      "motion"
+    ],
+    "themes": [
+      "未来",
+      "城市",
+      "抽象"
+    ],
+    "styleModifiers": "futuristic, dynamic brushwork, metallic texture, high-contrast lighting, abstract composition, expressive rendering, speed lines, kinetic energy",
+    "contentHints": "train in motion",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "modernist-04"
+  },
+  {
+    "id": "pp-05",
+    "title": "复古波普",
+    "category": "波普",
+    "tags": [
+      "复古",
+      "波普",
+      "海报",
+      "印刷",
+      "50年代",
+      "怀旧",
+      "retro-pop",
+      "poster",
+      "vintage"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "城市"
+    ],
+    "styleModifiers": "vintage color palette, distressed printing texture, bold typography, nostalgic lighting, retro composition, gritty brushwork, faded rendering",
+    "contentHints": "retro poster girl",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-05"
+  },
+  {
+    "id": "mn-05",
+    "title": "负空间",
+    "category": "极简",
+    "tags": [
+      "负空间",
+      "极简",
+      "留白",
+      "图形",
+      "双重意象",
+      "巧思",
+      "negative",
+      "minimal",
+      "optical"
+    ],
+    "themes": [
+      "抽象",
+      "人物",
+      "动物"
+    ],
+    "styleModifiers": "minimalist, monochromatic, high contrast, subtle texture, simple composition, negative space, clever use of whitespace, low detail rendering, abstract forms",
+    "contentHints": "face in negative space",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "minimal-05"
+  },
+  {
+    "id": "an-05",
+    "title": "奇幻二次元",
+    "category": "二次元",
+    "tags": [
+      "奇幻",
+      "二次元",
+      "魔法",
+      "冒险",
+      "光效",
+      "华丽",
+      "fantasy",
+      "anime",
+      "magic"
+    ],
+    "themes": [
+      "幻想",
+      "人物",
+      "游戏"
+    ],
+    "styleModifiers": "vibrant colors, cel-shading, dynamic brushwork, intricate textures, dramatic lighting, ornate composition, detailed rendering",
+    "contentHints": "magical girl with sword",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "anime-05"
+  },
+  {
+    "id": "px-05",
+    "title": "像素表情",
+    "category": "像素",
+    "tags": [
+      "像素",
+      "表情",
+      "图标",
+      "贴纸",
+      "逗趣",
+      "聊天",
+      "pixel",
+      "emoji",
+      "sticker"
+    ],
+    "themes": [
+      "游戏",
+      "人物",
+      "动物"
+    ],
+    "styleModifiers": "pixel art, coarse grain, simple shapes, bright colors, bold lines, flat composition, low-resolution rendering, playful textures",
+    "contentHints": "row of emoticon stickers",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pixel-05"
+  },
+  {
+    "id": "sf-05",
+    "title": "赛博城市",
+    "category": "赛博",
+    "tags": [
+      "赛博",
+      "城市夜景",
+      "霓虹",
+      "雨夜",
+      "巨型建筑",
+      "潮湿",
+      "cyberpunk",
+      "city",
+      "neon"
+    ],
+    "themes": [
+      "城市",
+      "未来",
+      "人物"
+    ],
+    "styleModifiers": "neon lights, dark alleys, wet pavement, futuristic architecture, bold brushwork, vibrant color palette, high contrast lighting, dynamic composition, detailed rendering",
+    "contentHints": "rainy night cityscape",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "cyber-05"
+  },
+  {
+    "id": "hb-06",
+    "title": "水粉绘本",
+    "category": "绘本",
+    "tags": [
+      "水粉",
+      "绘本",
+      "不透明",
+      "扁平",
+      "明快",
+      "儿童插画",
+      "gouache",
+      "picture-book",
+      "flat-color"
+    ],
+    "themes": [
+      "动物",
+      "人物",
+      "日常"
+    ],
+    "styleModifiers": "opaque watercolor, flat color blocks, soft texture, bright color palette, classic composition, gentle brushwork, whimsical lighting, children's book rendering",
+    "contentHints": "little bear and rabbit",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "picturebook-06"
+  },
+  {
+    "id": "zy-06",
+    "title": "治愈美食",
+    "category": "治愈",
+    "tags": [
+      "治愈",
+      "美食",
+      "甜点",
+      "便当",
+      "软萌",
+      "暖色",
+      "kawaii-food",
+      "dessert",
+      "food"
+    ],
+    "themes": [
+      "静物",
+      "日常",
+      "动物"
+    ],
+    "styleModifiers": "soft pastel colors, gentle brushwork, warm lighting, rounded shapes, whimsical textures, delicate composition, soothing rendering",
+    "contentHints": "smiling dessert plate",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "healing-06"
+  },
+  {
+    "id": "mh-06",
+    "title": "云上梦境",
+    "category": "梦幻",
+    "tags": [
+      "梦幻",
+      "云海",
+      "漂浮",
+      "天空",
+      "小岛",
+      "蓬松",
+      "cloud",
+      "dreamy",
+      "sky-island"
+    ],
+    "themes": [
+      "幻想",
+      "风景",
+      "自然"
+    ],
+    "styleModifiers": "whimsical illustrations, floating compositions, soft white textures, airy brushwork, pastel color palette, gentle lighting, ethereal rendering",
+    "contentHints": "island floating on clouds",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "dream-06"
+  },
+  {
+    "id": "wc-06",
+    "title": "水彩女孩",
+    "category": "水彩",
+    "tags": [
+      "水彩",
+      "女孩",
+      "清新",
+      "晕染",
+      "发丝",
+      "淡雅",
+      "watercolor",
+      "girl",
+      "portrait"
+    ],
+    "themes": [
+      "人物",
+      "日常",
+      "自然"
+    ],
+    "styleModifiers": "watercolor, soft gradient, gentle brushwork, pastel color palette, delicate texture, ethereal lighting, whimsical composition, translucent rendering",
+    "contentHints": "a young girl",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "watercolor-06"
+  },
+  {
+    "id": "ab-07",
+    "title": "泼溅抽象",
+    "category": "抽象",
+    "tags": [
+      "泼溅",
+      "抽象",
+      "滴画",
+      "波洛克",
+      "随机",
+      "能量",
+      "splatter",
+      "pollock",
+      "action"
+    ],
+    "themes": [
+      "抽象",
+      "幻想"
+    ],
+    "styleModifiers": "splattered texture, random drips, expressive brushwork, vibrant color palette, dynamic composition, layered rendering, energetic lighting",
+    "contentHints": "vibrant splattered colors",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "abstract-07"
+  },
+  {
+    "id": "su-06",
+    "title": "形变超现实",
+    "category": "超现实",
+    "tags": [
+      "形变",
+      "超现实",
+      "转化",
+      "扭曲",
+      "融化",
+      "重组",
+      "morph",
+      "surreal"
+    ],
+    "themes": [
+      "幻想",
+      "人物",
+      "静物"
+    ],
+    "styleModifiers": "surreal, dreamlike, blended textures, vibrant colors, soft lighting, abstract composition, melting rendering, paradoxical forms, eerie atmosphere, fluid brushwork",
+    "contentHints": "flower transforming into bird",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "surreal-06"
+  },
+  {
+    "id": "gf-06",
+    "title": "青花瓷纹",
+    "category": "国风",
+    "tags": [
+      "国风",
+      "青花",
+      "青花瓷",
+      "瓷",
+      "纹样",
+      "钴蓝",
+      "缠枝",
+      "porcelain",
+      "bluewhite",
+      "chinoiserie"
+    ],
+    "themes": [
+      "静物",
+      "传统",
+      "自然"
+    ],
+    "styleModifiers": "ceramic texture, cobalt blue palette, delicate lines, uniform brushwork, subtle shading, creamy glaze, traditional rendering, intricate patterns, floral motifs",
+    "contentHints": "vase with lotus flowers",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "guofeng-06"
+  },
+  {
+    "id": "cy-06",
+    "title": "蜀绣纹样",
+    "category": "川渝",
+    "tags": [
+      "川渝",
+      "蜀绣",
+      "刺绣",
+      "丝线",
+      "纹样",
+      "针脚",
+      "锦衣",
+      "embroidery",
+      "silk"
+    ],
+    "themes": [
+      "传统",
+      "动物",
+      "自然"
+    ],
+    "styleModifiers": "silky thread embroidery, subtle gradient, glossy, soft light bands, textured fabric, vibrant coloring, delicate stitching",
+    "contentHints": "fish and flowers",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "chuanyu-06"
+  },
+  {
+    "id": "ms-06",
+    "title": "傩面彩绘",
+    "category": "民俗",
+    "tags": [
+      "民俗",
+      "傩面",
+      "面具",
+      "彩绘",
+      "民间",
+      "木雕",
+      "朱红",
+      "nuo-mask",
+      "folk",
+      "wood-carving"
+    ],
+    "themes": [
+      "人物",
+      "传统",
+      "幻想"
+    ],
+    "styleModifiers": "carved wooden texture, bold chiseled edges, vibrant red and black colors, exaggerated forms, rough brushwork, dramatic lighting, intense composition, ornate patterns",
+    "contentHints": "traditional theater mask",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "folk-06"
+  },
+  {
+    "id": "cl-06",
+    "title": "拜占庭金底圣像",
+    "category": "古典西画",
+    "tags": [
+      "古典西画",
+      "拜占庭",
+      "金箔",
+      "圣像",
+      "壁画",
+      "光环",
+      "镶嵌",
+      "byzantine",
+      "icon",
+      "gold"
+    ],
+    "themes": [
+      "人物",
+      "传统",
+      "静物"
+    ],
+    "styleModifiers": "Byzantine icon painting, gilded ground, flat blue green and red color fields, elongated frontal figures, almond-shaped eyes, golden halos, stylized linear drapery, decorative over naturalistic, solemn sacred atmosphere",
+    "contentHints": "a half-length saint with a golden halo",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "classical-06"
+  },
+  {
+    "id": "im-06",
+    "title": "色粉印象",
+    "category": "印象派",
+    "tags": [
+      "印象派",
+      "色粉",
+      "粉彩",
+      "印象",
+      "柔和",
+      "颗粒",
+      "粉笔",
+      "pastel",
+      "chalk",
+      "impression"
+    ],
+    "themes": [
+      "风景",
+      "人物",
+      "日常"
+    ],
+    "styleModifiers": "soft pastel colors, impressionist brushwork, layered texture, blurred edges, bright hues, gentle lighting, continuous tone transitions, subtle paper undertones",
+    "contentHints": "girl on a bench at dusk",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "impressionist-06"
+  },
+  {
+    "id": "ol-06",
+    "title": "刮刀油画",
+    "category": "油画",
+    "tags": [
+      "刮刀",
+      "油画",
+      "肌理",
+      "厚涂",
+      "色带",
+      "刀痕",
+      "palette",
+      "impasto",
+      "oil-painting"
+    ],
+    "themes": [
+      "风景",
+      "静物",
+      "自然"
+    ],
+    "styleModifiers": "thick impasto, palette knife strokes, textured brushwork, bold color blocking, high contrast lighting, geometric composition, layered rendering, sharp edges, matte finish",
+    "contentHints": "golden wheat field",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "oil-06"
+  },
+  {
+    "id": "md-05",
+    "title": "风格派色块",
+    "category": "现代主义",
+    "tags": [
+      "现代主义",
+      "风格派",
+      "蒙德里安",
+      "网格",
+      "原色",
+      "矩形",
+      "de-stijl",
+      "mondrian",
+      "primary"
+    ],
+    "themes": [
+      "抽象",
+      "静物"
+    ],
+    "styleModifiers": "geometric shapes, primary colors, rectangular blocks, black and white, grid composition, flat perspective, no brushstrokes, strict proportions, linear divisions, bold color contrasts, graphic rendering, minimalist technique, abstract forms, monochromatic accents, high contrast lighting, two-dimensional layout",
+    "contentHints": "abstract color blocks",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "modernist-05"
+  },
+  {
+    "id": "pp-06",
+    "title": "超扁平波普",
+    "category": "波普",
+    "tags": [
+      "超扁平",
+      "波普",
+      "太阳花",
+      "卡通",
+      "潮玩",
+      "高饱和",
+      "superflat",
+      "pop-art",
+      "murakami"
+    ],
+    "themes": [
+      "人物",
+      "动物",
+      "日常"
+    ],
+    "styleModifiers": "flat, cartoonish, bold outlines, high saturation, solid colors, graphic patterns, stylized textures, abstract composition, playful lighting, exaggerated rendering, vibrant, whimsical, distorted proportions, geometric shapes, repetitive motifs, dreamy, surreal",
+    "contentHints": "smiling face surrounded by flowers",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pop-06"
+  },
+  {
+    "id": "mn-06",
+    "title": "图标扁平化",
+    "category": "极简",
+    "tags": [
+      "图标",
+      "扁平",
+      "符号",
+      "极简",
+      "圆角",
+      "界面",
+      "icon",
+      "flat-design",
+      "pictogram"
+    ],
+    "themes": [
+      "日常",
+      "静物",
+      "抽象"
+    ],
+    "styleModifiers": "flat, geometric shapes, minimal texture, single color, dual color, rounded corners, stable composition, uniform lighting, simplified forms, clean lines, two-dimensional",
+    "contentHints": "daily small objects",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "minimal-06"
+  },
+  {
+    "id": "an-06",
+    "title": "剧场版天空",
+    "category": "二次元",
+    "tags": [
+      "二次元",
+      "剧场版",
+      "天空",
+      "云层",
+      "光影",
+      "逆光",
+      "背景美术",
+      "anime-sky",
+      "shinkai",
+      "anime-bg"
+    ],
+    "themes": [
+      "风景",
+      "城市",
+      "日常"
+    ],
+    "styleModifiers": "Japanese theatrical anime environment painting, vast dramatic skies and cumulus clouds, strong backlight and lens flare, high detail with airy transparency, saturated luminous color, cinematic wide composition",
+    "contentHints": "a giant cloud formation over the road home after school",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "anime-06"
+  },
+  {
+    "id": "px-06",
+    "title": "拼豆像素",
+    "category": "像素",
+    "tags": [
+      "拼豆",
+      "像素",
+      "手作",
+      "颗粒",
+      "熨烫",
+      "色卡",
+      "perler",
+      "beads",
+      "pixel-craft"
+    ],
+    "themes": [
+      "动物",
+      "日常",
+      "游戏"
+    ],
+    "styleModifiers": "pixel art, grid-based, rounded particles, small gaps, soft edges, glossy surface, handmade feel, vibrant colors, standard color palette",
+    "contentHints": "small colorful dinosaur",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "pixel-06"
+  },
+  {
+    "id": "sf-06",
+    "title": "太阳朋克",
+    "category": "赛博",
+    "tags": [
+      "赛博",
+      "太阳朋克",
+      "环保",
+      "绿能",
+      "垂直绿化",
+      "乐观",
+      "玻璃木构",
+      "solarpunk",
+      "eco-future",
+      "green-tech"
+    ],
+    "themes": [
+      "未来",
+      "自然",
+      "城市"
+    ],
+    "styleModifiers": "bright optimistic solarpunk aesthetic, transparent glassy surfaces, warm sunlight, lush green color accents, clean geometric forms, eco-futuristic atmosphere, orderly composition, high-key lighting, smooth rendering",
+    "contentHints": "futuristic community rooftop garden",
+    "negative": "",
+    "source": "自建",
+    "styleKey": "cyber-06"
   }
 ]
