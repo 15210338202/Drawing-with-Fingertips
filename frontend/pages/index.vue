@@ -2,7 +2,7 @@
   <div class="min-h-screen overflow-hidden bg-paper">
     <AppHeader />
 
-    <main class="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1200px] items-center px-4 py-10 sm:px-6 lg:py-16">
+    <main class="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-[min(1080px,90vw)] items-center px-4 py-10 sm:px-6 lg:py-16">
       <div class="welcome-glow" aria-hidden="true" />
 
       <div class="relative grid w-full items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
@@ -77,7 +77,7 @@
           </p>
         </section>
 
-        <section class="relative mx-auto w-full max-w-[460px]" aria-label="画室预览">
+        <section class="relative mx-auto w-full max-w-[25.875rem]" aria-label="画室预览">
           <div class="paper-stage">
             <div class="flex items-center justify-between border-b border-line/80 pb-3">
               <div class="flex items-center gap-2">
@@ -132,7 +132,7 @@
       </div>
     </main>
 
-    <section id="how" class="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6">
+    <section id="how" class="mx-auto max-w-[min(1080px,90vw)] px-4 pb-16 sm:px-6">
       <div class="grid gap-3 sm:grid-cols-3">
         <article
           v-for="step in steps"

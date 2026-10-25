@@ -1,6 +1,6 @@
 <template>
   <header class="sticky top-0 z-40 border-b border-line/70 bg-paper/85 backdrop-blur-md">
-    <div class="mx-auto flex h-16 max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6">
+    <div class="mx-auto flex h-16 max-w-[min(1350px,90vw)] items-center justify-between gap-3 px-4 sm:px-6">
       <NuxtLink
         to="/"
         class="flex min-h-11 items-center gap-2.5 rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"

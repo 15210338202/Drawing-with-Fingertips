@@ -23,7 +23,7 @@
       </template>
     </AppHeader>
 
-    <main class="mx-auto grid max-w-[1500px] gap-4 px-4 py-4 xl:grid-cols-[280px_minmax(0,1fr)_340px] xl:items-start">
+    <main class="mx-auto grid max-w-[min(1350px,90vw)] gap-4 px-4 py-4 xl:grid-cols-[17.5rem_minmax(0,1fr)_21.25rem] xl:items-start">
       <!-- 小屏时画布优先，摄像头/工具在下方；宽屏时回到左栏 -->
       <div class="order-2 flex flex-col gap-3 xl:order-1 xl:sticky xl:top-20">
         <ToolRail

@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/*
+ * 全站视觉比例：90%。
+ * Tailwind 的间距/字号大多基于 rem，所以根字号降到 90% 后，
+ * 卡片留白、按钮高度、正文都会一起收紧；
+ * 少数 px 写死的容器宽度在对应组件里同步乘 0.9。
+ */
+html {
+  font-size: 90%;
+}
+
 @theme {
   --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 
@@ -15,10 +25,11 @@
   --color-peach: #c98363;
   --color-danger: #a34f43;
 
-  --radius-card: 20px;
-  --radius-sheet: 28px;
+  --radius-card: 18px;
+  --radius-sheet: 25px;
   --shadow-soft: 0 8px 24px rgb(60 50 40 / 0.08);
 }
+
 
 html,
 body,

@@ -33,6 +33,9 @@ export interface CameraController {
   isActive: () => boolean
 }
 
+/** 两个“确认生成”入口：竖大拇指、10 秒空闲邀请 */
+export type GenerationTrigger = 'thumbs-up' | 'idle-suggestion'
+
 export const useAgentStore = defineStore('agent', {
   state: () => ({
     messages: [] as AgentMessage[],
@@ -92,6 +95,13 @@ export const useAgentStore = defineStore('agent', {
      * Agent 动作）共用这个锁，避免同一张画并发生成。
      */
     isGenerating: false,
+
+    /**
+     * 谁先认领了这次“确认生成”。
+     * 竖大拇指和 10 秒空闲邀请都可能在准备阶段等待 AI 分析，
+     * 在真正进入 generate_image 之前用一个共享锁占位，避免两边同时开始。
+     */
+    generationTrigger: null as GenerationTrigger | null,
 
     /**
      * 画布导出的桥。
@@ -178,6 +188,19 @@ export const useAgentStore = defineStore('agent', {
     },
     setGenerating(v: boolean) {
       this.isGenerating = v
+    },
+    /**
+     * 先到先得地认领一次生成。
+     * 返回 false 表示另一个入口已经在准备或正在生成，调用方必须直接退出。
+     */
+    claimGeneration(source: GenerationTrigger): boolean {
+      if (this.generationTrigger || this.isGenerating) return false
+      this.generationTrigger = source
+      return true
+    },
+    /** 只释放自己持有的锁，避免把另一个入口的锁误清掉 */
+    releaseGeneration(source: GenerationTrigger) {
+      if (this.generationTrigger === source) this.generationTrigger = null
     },
     setStyleResults(arr: StyleResult[]) {
       this.styleResults = arr
@@ -281,6 +304,7 @@ export const useAgentStore = defineStore('agent', {
       this.lastSketchBase64 = null
       this.lastStrokeTime = 0
       this.isGenerating = false
+      this.generationTrigger = null
       this.pendingClear = false
     },
   },

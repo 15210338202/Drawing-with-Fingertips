@@ -1,5 +1,5 @@
 <template>
-  <div :class="embedded ? 'w-full' : 'w-[360px] rounded-card border border-line bg-surface p-4 shadow-soft'">
+  <div :class="embedded ? 'w-full' : 'w-[22.5rem] rounded-card border border-line bg-surface p-4 shadow-soft'">
     <h2 v-if="!embedded" class="font-semibold">风格库</h2>
 
     <p v-if="!store.styleResults.length" class="mt-2 text-sm text-muted">

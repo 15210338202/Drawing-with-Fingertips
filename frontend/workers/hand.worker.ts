@@ -33,15 +33,15 @@ const LOCAL_BUNDLE_PATH = '/vendor/vision_bundle.js'
 const CDN_BUNDLE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.js'
 
 /**
- * R6 三级过滤的第一层：模型侧置信度。
+ * 模型侧置信度。
  *
- * - detection / presence 从 0.5 提到 0.6：先砍掉低质量的“疑似手”，
- *   否则第二只手会频繁以半只手的形态闪进闪出，主手最近邻匹配会被带着跳。
- * - tracking 反而降到 0.4：tracking 掉到 0.6 以下时 MediaPipe 会丢弃上一帧的跟踪状态，
- *   侧手/快速移动时特别容易“丢手 → 重新检测 → 标签翻转”。放宽它，宁可多跟几帧。
+ * R6 几何过滤默认关闭后，这两项就是唯一的前置过滤；0.6 是在 R6 开启时调高的，
+ * 会把手离脸较近、侧着、被遮挡的真实手一起挡掉（线上出现过“手指捏合但没识别”）。
+ * 这里放宽到 0.5，优先保证真实手能进入；假阳性交给后续几何/主手逻辑处理。
+ * tracking 保持 0.4：太严会让侧手/快速移动时的跟踪状态被丢弃。
  */
-const DETECTION_CONFIDENCE = 0.6
-const PRESENCE_CONFIDENCE = 0.6
+const DETECTION_CONFIDENCE = 0.5
+const PRESENCE_CONFIDENCE = 0.5
 const TRACKING_CONFIDENCE = 0.4
 
 /** 最多同时检测两只手：一只手画画，另一只手留给后续的辅助手势 */

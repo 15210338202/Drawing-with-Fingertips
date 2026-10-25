@@ -3,7 +3,7 @@
     <h2 class="font-semibold">画布区</h2>
 
     <!-- 生成结果浮层要和画布像素级对齐，所以叠在同一个盒子里 -->
-    <div class="relative mt-2 w-[800px] max-w-full">
+    <div class="relative mt-2 w-[50rem] max-w-full">
       <canvas
         ref="canvasEl"
         width="800"
@@ -562,13 +562,13 @@ function resetIdleTimer() {
   // 用户一动笔，就把没念完的邀请打断，别让气泡和笔迹抢注意力
   if (wasVisible) stopSpeaking()
 
-  if (!agent.hasSketch || agent.isGenerating || suggestionDismissed.value) return
+  if (!agent.hasSketch || agent.isGenerating || agent.generationTrigger || suggestionDismissed.value) return
   if (agent.loading || agent.streaming || agent.executing) return
 
   idleTimer = setTimeout(() => {
     idleTimer = null
 
-    if (!agent.hasSketch || agent.isGenerating || suggestionDismissed.value) return
+    if (!agent.hasSketch || agent.isGenerating || agent.generationTrigger || suggestionDismissed.value) return
     if (agent.loading || agent.streaming || agent.executing) return
 
     // 先标记再显示：气泡不自动消失，用户没点“暂不”也不会在下一轮重复弹/重复念
@@ -611,6 +611,13 @@ async function triggerSuggestionGenerate() {
     return
   }
 
+  // 和 👍 共用一个“先到先得”的锁：如果 thumbs-up 已经在准备，这里直接退出，
+  // 避免两个入口同时走 analyze + generate。
+  if (!agent.claimGeneration('idle-suggestion')) {
+    showSuggestionNotice('另一个生成请求正在处理中，稍等一下')
+    return
+  }
+
   suggestionDismissed.value = true
   hideSuggestion()
 
@@ -636,6 +643,9 @@ async function triggerSuggestionGenerate() {
   catch (err) {
     showSuggestionNotice(`生成失败：${(err as Error)?.message ?? String(err)}`)
   }
+  finally {
+    agent.releaseGeneration('idle-suggestion')
+  }
 }
 
 // 每落一笔都重排计时；同时清掉“这一版已提示过”的标记，下一轮空闲可以再邀请
@@ -656,6 +666,14 @@ watch(() => agent.hasSketch, (hasSketch) => {
 watch(() => agent.isGenerating, (busy) => {
   if (!busy) return
 
+  suggestionDismissed.value = true
+  hideSuggestion()
+})
+
+// 竖大拇指先认领了这次生成时，也要立刻把气泡收掉；
+// 两个确认入口共用 generationTrigger，不能各弹各的、各生成各的。
+watch(() => agent.generationTrigger, (trigger) => {
+  if (!trigger) return
   suggestionDismissed.value = true
   hideSuggestion()
 })

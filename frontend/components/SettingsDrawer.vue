@@ -11,7 +11,7 @@
     <Transition name="slide-right">
       <aside
         v-if="ui.isSettingsOpen"
-        class="fixed right-0 top-0 z-[80] flex h-full w-[380px] max-w-[calc(100vw-1rem)] flex-col rounded-l-[28px] border-l border-line bg-surface shadow-2xl"
+        class="fixed right-0 top-0 z-[80] flex h-full w-[23.75rem] max-w-[calc(100vw-1rem)] flex-col rounded-l-[25px] border-l border-line bg-surface shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"

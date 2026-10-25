@@ -344,6 +344,13 @@ async function handleThumbsUp() {
     return
   }
 
+  // 和 10 秒空闲邀请共用一把锁。先认领的入口负责这次生成，
+  // 另一个入口直接退出，不能再各自 analyze + generate。
+  if (!agent.claimGeneration('thumbs-up')) {
+    showThumbsUpNotice('另一个生成请求正在处理中，稍等一下', 'warn')
+    return
+  }
+
   generatingByThumbsUp.value = true
   flashThumbsUp()
 
@@ -384,6 +391,7 @@ async function handleThumbsUp() {
     showThumbsUpNotice(`👍 生成失败：${reason}`, 'error', 7000)
   } finally {
     generatingByThumbsUp.value = false
+    agent.releaseGeneration('thumbs-up')
   }
 }
 
@@ -584,11 +592,11 @@ const MIN_FRAME_INTERVAL = 1000 / 30
 
 /**
  * 送去推理的画面最大宽度。
- * MediaPipe 的模型输入只有 224/256，480 宽是在给它喂用不上的像素；
- * 320 宽既保留足够的手部细节，又把解码/传输/预处理的像素量降到约 44%。
- * 这是当前“点位跟不上手”最直接的一刀，先降分辨率，不动识别算法。
+ * MediaPipe 的模型输入只有 224/256，但 320 宽对“手贴着脸/侧着捏合”这种姿态
+ * 细节仍然不够，线上出现过关键点落到脸上、真实手没被检测到的情况。
+ * 恢复 480 宽，优先保证捏合识别；30fps 下仍可接受。
  */
-const DETECT_MAX_WIDTH = 320
+const DETECT_MAX_WIDTH = 480
 
 /**
  * 把真实画幅的宽高比写进手势 store。

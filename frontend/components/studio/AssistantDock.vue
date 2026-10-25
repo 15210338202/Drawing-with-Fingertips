@@ -1,5 +1,5 @@
 <template>
-  <aside class="flex min-h-[460px] flex-col rounded-card border border-line bg-surface shadow-soft lg:sticky lg:top-20">
+  <aside class="flex min-h-[25.875rem] flex-col rounded-card border border-line bg-surface shadow-soft lg:sticky lg:top-20">
     <div
       class="flex gap-1 border-b border-line/80 p-2"
       role="tablist"

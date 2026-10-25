@@ -1,7 +1,7 @@
 <template>
   <div :class="embedded
     ? 'flex w-full flex-col gap-2'
-    : 'flex w-[360px] flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-soft'">
+    : 'flex w-[22.5rem] flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-soft'">
     <h2 v-if="!embedded" class="font-semibold">AI 助手</h2>
 
     <!-- 消息列表：固定高度 + 可滚动，新内容进来自动滚到底 -->
