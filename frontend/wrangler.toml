@@ -1,4 +1,4 @@
-name = "fingertip-draw"
-compatibility_date = "2026-10-25"
-pages_build_output_dir = "./.output/public"
+name = "drawing-with-fingertips"
+compatibility_date = "2025-10-01"
+pages_build_output_dir = "./dist"
 compatibility_flags = ["nodejs_compat"]
